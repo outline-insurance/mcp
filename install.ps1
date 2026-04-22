@@ -62,9 +62,30 @@ try {
 
     # Install binary.
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    $ExePath  = Join-Path $InstallDir 'p.exe'
+    $OldExe   = "$ExePath.old"
+
+    # Clean up any stale p.exe.old left from a previous self-update.
+    if (Test-Path $OldExe) {
+        try { Remove-Item -Force $OldExe -ErrorAction Stop } catch { }
+    }
+
+    # If this install is being run as `p update`, the currently running
+    # p.exe holds an exclusive lock and Expand-Archive will fail. Windows
+    # DOES let us rename a running executable out of the way, so move it
+    # aside first; the new p.exe extracts cleanly next to it.
+    if (Test-Path $ExePath) {
+        try {
+            Rename-Item -Path $ExePath -NewName 'p.exe.old' -ErrorAction Stop
+        } catch {
+            Write-Error "Could not move existing $ExePath aside (is it running in another window?). Close it and re-run."
+            throw
+        }
+    }
+
     Expand-Archive -Path $ZipPath -DestinationPath $InstallDir -Force
-    Unblock-File -Path (Join-Path $InstallDir 'p.exe')
-    Write-Host "Installed $InstallDir\p.exe"
+    Unblock-File -Path $ExePath
+    Write-Host "Installed $ExePath"
 
     # Add to user PATH if missing. Takes effect in new terminals only.
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
