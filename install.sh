@@ -91,7 +91,7 @@ if curl -fsSL "$BASE_URL/SKILL.md" -o "$TMP/SKILL.md" 2>/dev/null; then
   echo "Installed Pathpoint skill to $SKILL_DIR/"
 fi
 
-# Configure the Claude Desktop MCP server entry.
+# Configure the Claude Desktop MCP server entry and stage the skill zip.
 if [ -d "$(dirname "$CLAUDE_CFG")" ]; then
   if command -v jq >/dev/null 2>&1; then
     if [ -f "$CLAUDE_CFG" ]; then
@@ -110,8 +110,23 @@ if [ -d "$(dirname "$CLAUDE_CFG")" ]; then
     echo "To configure manually, add this under \"mcpServers\" in $CLAUDE_CFG:"
     echo "  \"pathpoint\": { \"command\": \"$INSTALL_DIR/p\", \"args\": [\"mcp-serve\"] }"
   fi
+
+  # Claude Desktop skills don't have a local install path — they're
+  # uploaded to Anthropic's servers via the in-app Settings UI. Stage
+  # the zip somewhere obvious so the user only has to drag-and-drop.
+  SKILL_ZIP_DEST="$HOME/Downloads/pathpoint-skill.zip"
+  [ -d "$HOME/Downloads" ] || SKILL_ZIP_DEST="$HOME/pathpoint-skill.zip"
+  if curl -fsSL "$BASE_URL/pathpoint-skill.zip" -o "$SKILL_ZIP_DEST" 2>/dev/null; then
+    echo ""
+    echo "Pathpoint skill for Claude Desktop staged at:"
+    echo "  $SKILL_ZIP_DEST"
+    echo "To finish installing the skill in Claude Desktop:"
+    echo "  1. Open Claude Desktop"
+    echo "  2. Settings → Capabilities → Skills → Create skill"
+    echo "  3. Upload the zip above"
+  fi
 else
-  echo "Claude Desktop not detected; skipping MCP config."
+  echo "Claude Desktop not detected; skipping MCP config and skill staging."
 fi
 
 echo ""

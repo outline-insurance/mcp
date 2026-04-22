@@ -105,7 +105,7 @@ try {
         # SKILL.md not in release — skip.
     }
 
-    # Configure Claude Desktop MCP server entry.
+    # Configure Claude Desktop MCP server entry and stage the skill zip.
     if (Test-Path (Split-Path $ClaudeCfg -Parent)) {
         $cfg = if (Test-Path $ClaudeCfg) {
             Get-Content $ClaudeCfg -Raw | ConvertFrom-Json -AsHashtable
@@ -117,8 +117,27 @@ try {
         }
         $cfg | ConvertTo-Json -Depth 10 | Set-Content -Path $ClaudeCfg -Encoding UTF8
         Write-Host "Configured Claude Desktop MCP server. Restart Claude Desktop to load."
+
+        # Claude Desktop skills don't have a local install path — they're
+        # uploaded to Anthropic's servers via the in-app Settings UI. Stage
+        # the zip somewhere obvious so the user only has to drag-and-drop.
+        $Downloads = Join-Path $env:USERPROFILE 'Downloads'
+        if (-not (Test-Path $Downloads)) { $Downloads = $env:USERPROFILE }
+        $SkillZipDest = Join-Path $Downloads 'pathpoint-skill.zip'
+        try {
+            Invoke-WebRequest -Uri "$BaseUrl/pathpoint-skill.zip" -OutFile $SkillZipDest -UseBasicParsing -ErrorAction Stop
+            Write-Host ""
+            Write-Host "Pathpoint skill for Claude Desktop staged at:"
+            Write-Host "  $SkillZipDest"
+            Write-Host "To finish installing the skill in Claude Desktop:"
+            Write-Host "  1. Open Claude Desktop"
+            Write-Host "  2. Settings -> Capabilities -> Skills -> Create skill"
+            Write-Host "  3. Upload the zip above"
+        } catch {
+            # skill zip not published in this release — skip silently
+        }
     } else {
-        Write-Host "Claude Desktop not detected; skipping MCP config."
+        Write-Host "Claude Desktop not detected; skipping MCP config and skill staging."
     }
 
     Write-Host ""

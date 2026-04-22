@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.4** &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases)
+Current release: **v0.0.5** &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases)
 
 ## Install
 
@@ -57,9 +57,13 @@ curl -fsSL https://raw.githubusercontent.com/outline-insurance/mcp/main/SKILL.md
 
 ### Claude Desktop / Claude.ai Web (manual zip import)
 
-1. Download `pathpoint-skill.zip` from the [latest release](https://github.com/outline-insurance/mcp/releases/latest).
-2. In Claude Desktop or Claude.ai Web: **Settings → Capabilities → Skills → Create skill** → upload the zip.
-3. Restart Claude Desktop, or start a fresh chat on the Web.
+Claude Desktop skills live on Anthropic's servers rather than a local path, so the final step is manual. The installer already helps: it pre-downloads `pathpoint-skill.zip` to your `Downloads` folder when it detects Claude Desktop.
+
+1. Open Claude Desktop.
+2. **Settings → Capabilities → Skills → Create skill** → upload `~/Downloads/pathpoint-skill.zip` (or `%USERPROFILE%\Downloads\pathpoint-skill.zip` on Windows).
+3. Restart Claude Desktop, or start a fresh chat on Claude.ai Web.
+
+If you're on Claude.ai Web or installed before this step was added, you can grab the zip directly from the [latest release](https://github.com/outline-insurance/mcp/releases/latest).
 
 ## Authenticating
 
