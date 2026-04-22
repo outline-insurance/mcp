@@ -30,11 +30,14 @@ case "$(uname -m)" in
 esac
 
 # Resolve "latest" to a concrete tag via the GitHub API.
+# Uses awk rather than sed \s since BSD sed on macOS doesn't support \s.
 if [ "$VERSION" = "latest" ]; then
   VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | sed -nE 's/^\s*"tag_name":\s*"v?([^"]+)".*/\1/p' | head -1)"
+    | awk -F '"' '/"tag_name":/ { sub(/^v/, "", $4); print $4; exit }')"
   if [ -z "$VERSION" ]; then
-    echo "Could not resolve latest version from $REPO. Is the repo public?" >&2
+    echo "Could not resolve latest version from $REPO." >&2
+    echo "Is the repo public? Does it have any releases?" >&2
+    echo "  gh release list --repo $REPO" >&2
     exit 1
   fi
 fi
