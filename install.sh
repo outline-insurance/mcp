@@ -130,4 +130,4 @@ else
 fi
 
 echo ""
-echo "Done. Run: p login --endpoint demo"
+echo "Done. Run: p login"

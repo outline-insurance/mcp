@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.5** &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases)
+Current release: **v0.0.6** &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases)
 
 ## Install
 

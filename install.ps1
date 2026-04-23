@@ -141,7 +141,7 @@ try {
     }
 
     Write-Host ""
-    Write-Host "Done. Open a new terminal and run: p login --endpoint demo"
+    Write-Host "Done. Open a new terminal and run: p login"
     Write-Host "(On first run, Windows SmartScreen may prompt once -- click 'More info' then 'Run anyway'.)"
 }
 finally {
