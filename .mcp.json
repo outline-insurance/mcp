@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "slack": {
+      "type": "http",
+      "url": "https://slack-mcp.outline.dev/sse"
+    },
+    "linear": {
+      "type": "http",
+      "url": "https://linear-mcp.outline.dev/sse"
+    },
+    "datadog": {
+      "type": "http",
+      "url": "https://mcp.datadoghq.app/sse"
+    },
+    "metabase": {
+      "type": "http",
+      "url": "https://metabase-mcp.outline.dev/sse"
+    }
+  }
+}
