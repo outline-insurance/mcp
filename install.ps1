@@ -107,11 +107,30 @@ try {
 
     # Configure Claude Desktop MCP server entry and stage the skill zip.
     if (Test-Path (Split-Path $ClaudeCfg -Parent)) {
+        # Build a hashtable from the existing config (if any). Avoids
+        # ConvertFrom-Json -AsHashtable, which doesn't exist on Windows
+        # PowerShell 5.1 — the runtime that ships with stock Windows and
+        # the most likely host for this `irm | iex` one-liner.
+        function ConvertTo-PSHashtable($obj) {
+            if ($null -eq $obj) { return @{} }
+            $h = [ordered]@{}
+            foreach ($prop in $obj.PSObject.Properties) {
+                $v = $prop.Value
+                if ($v -is [System.Management.Automation.PSCustomObject]) {
+                    $h[$prop.Name] = ConvertTo-PSHashtable $v
+                } else {
+                    $h[$prop.Name] = $v
+                }
+            }
+            return $h
+        }
+
         $cfg = if (Test-Path $ClaudeCfg) {
-            Get-Content $ClaudeCfg -Raw | ConvertFrom-Json -AsHashtable
-        } else { @{} }
-        if (-not $cfg.mcpServers) { $cfg.mcpServers = @{} }
-        $cfg.mcpServers.pathpoint = @{
+            ConvertTo-PSHashtable (Get-Content $ClaudeCfg -Raw | ConvertFrom-Json)
+        } else { [ordered]@{} }
+
+        if (-not $cfg.Contains('mcpServers')) { $cfg['mcpServers'] = [ordered]@{} }
+        $cfg['mcpServers']['pathpoint'] = [ordered]@{
             command = (Join-Path $InstallDir 'p.exe')
             args    = @('mcp-serve')
         }
