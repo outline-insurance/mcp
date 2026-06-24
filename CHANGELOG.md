@@ -14,7 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - WKFC Underwriting Managers is now a recognized carrier in the MCP server. Quote and resubmit tools
   resolve `WKFC` (or "WKFC Underwriting Managers") to its market and UUID, matching the carrier
   added to the product in #15570.
-- A public landing page for the MCP server (served via GitHub Pages from the release repo).
+- A public landing page for the MCP server (served via GitHub Pages from the release repo), with
+  copy aligned to the Pathpoint brand voice and platform icons for macOS, Linux, and Windows.
 
 ## [0.0.8] - 2026-06-18
 
