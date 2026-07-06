@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-07-06
+
+### Added
+
+- `p mutation createAgencyNetwork` and `p mutation updateAgencyNetwork` — create and update agency
+  networks via the new GraphQL API (#15638). Both take `--input '<json>'`; `type` is one of
+  `STANDARD_NETWORK`, `CENTRALIZED_NETWORK`, `AGENCY` and `payer` is `INSURED` or `AGENCY`.
+- MCP tools `list_agency_networks`, `create_agency_network`, and `update_agency_network` (admin —
+  `GLOBAL_MANAGE_AGENCY`). The create/update tools refuse to write on a prod session unless
+  `confirm_prod=true`.
+
+### Changed
+
+- `p query getAgencyNetworks` now returns the full record (commission percentages, Ascend account
+  id, `appointed`, `payer`, `hideCommission`, `type`) instead of just id and name.
+
+### Fixed
+
+- The CLI code generator now includes enum-typed fields in default selection sets (previously
+  dropped) and keeps enum-typed arguments as plain string flags.
+
 ## [0.0.9] - 2026-06-24
 
 ### Added
