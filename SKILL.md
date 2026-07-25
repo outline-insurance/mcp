@@ -107,15 +107,104 @@ who changed what and when. Useful for "what's different on the renewal?" before 
 ### Not covered by these tools (use the app)
 
 E-signing (interactive ceremony), endorsement and mid-term-adjustment requests (structured wizards),
-policy cancellation/non-renewal (Pathpoint ops only), and AI document-extract prefill. When users
-ask for these, point them to the app rather than improvising.
+and policy cancellation/non-renewal (Pathpoint ops only). When users ask for these, point them to
+the app rather than improvising.
 
-### Starting a new submission (`create_risk`)
+### Starting a new submission conversationally (`create_risk` → `get_submission_questions` loop)
 
-The from-scratch entry point — use when there's no similar risk to clone. Ask what coverage the
-client needs and map it to a product id (`cyber`, `cglV2`, `monolinePropertyV2`, `mpl`, …); when
-unsure, check an existing risk of the same flavor with `get_risk`. Create, then immediately
-`list_fields` and walk the user through the required fields conversationally before `submit_risk`.
+The from-scratch entry point — use when there's no similar risk to clone. The question set is
+dynamic: answers reveal new questions, so work the loop below rather than trying to collect
+everything up front.
+
+1. **Intake.** Ask what coverage the client needs and map it to a product id (`cyber`, `cglV2`,
+   `monolinePropertyV2`, `mpl`, …); when unsure, check an existing risk of the same flavor with
+   `get_risk`. Then invite everything at once: "Paste whatever you have — broker email, notes,
+   details — and attach any ACORDs or supplementals."
+2. **Create** the risk with `create_risk`, then immediately call `get_submission_questions` to learn
+   the actual question labels, types, and allowed options. For property-carrying coverages
+   (`package*`, `monolineProperty*`), pass `tenancy_types` at creation — ask what occupies the
+   building, find the canonical strings with `search_tenancy_types`, and pass them in the
+   `create_risk` call. Property raters hard-require an occupancy, and some package products
+   (`packageRestaurants` at least) never serve an occupancy question in the submission flow — so
+   creation is the only conversational chance to set it there, and a package risk created without
+   one is declined by every property market at submit. (`monolineProperty*` also serves a "Tenant
+   type" question that can be set later.) Pass `class_codes` at creation for GL-family products too
+   — some verticals (`cglManufacturing` at least) never serve a class-of-business picker in the
+   flow, yet their raters hard-require the risk-level class codes: a risk created without them is
+   declined by every market with no appetite reason given. For products that do serve a picker
+   (`cglV2`, `cglVacants`), the preselect just skips it. Heed any warning in the create_risk
+   response about preselects the server did not apply.
+3. **Files.** Upload each file with `upload_risk_file` and `extract: true`. Extraction runs in the
+   background (about a minute) — keep collecting info meanwhile, and check `get_extraction_status`
+   before the review step. If extraction fails, proceed without prefills and ask instead.
+4. **Extract from text yourself.** Map what the user pasted onto the real question labels. Only use
+   values the user actually provided — never guess or invent an answer, especially for underwriting
+   questions.
+5. **Batch review.** Present one plain-English summary of every value you intend to write, grouped
+   by page, marking where each came from ("from your ACORD", "from your email"). Call out
+   high-stakes fields individually: effective date, annual revenue, class of business. Get one
+   approval, then write everything with a single `modify_submission` call.
+6. **Follow the cascade.** The write response reports newly appeared questions — relay them
+   conversationally ("that unlocked 3 questions about your kitchen operations"). Ask remaining
+   questions a few at a time, grouped by page, offering allowed options verbatim. Answers can be
+   option text — the tool maps them to values. For tenancy-type questions (the type hint reads
+   "tenancy type"), ask what actually occupies the building, use `search_tenancy_types` to find
+   candidates, offer the top matches conversationally, and write the exact returned value (for
+   multiple tenancies, one canonical string per line) — free text fails silently at rating.
+7. **Loop** steps 5–6 until `get_submission_questions` reports all required questions answered and
+   no validation errors. Mid-flow corrections ("actually the effective date is June 1") are just
+   another `modify_submission` call.
+8. **Submit** via the existing `submit_risk` flow: summary, explicit confirmation, then report which
+   markets it went to and any instant quotes or declines.
+
+#### GL / class-of-business products (cglV2 and friends)
+
+GL-family submissions classify the business with 5-digit class codes instead of (or alongside)
+tenancies:
+
+- **Class of business page.** The vertical picker (type hint mentions class codes, e.g. "What type
+  of contractor is your applicant?") stores comma-separated 5-digit codes. Ask what the business
+  actually does, use `search_class_codes` to find candidates, offer the top matches in plain
+  English, then write the code(s) comma-separated (e.g. `"91560,91580"`). Free text fails
+  classification silently at rating — never invent codes.
+- **Per-location exposures.** Each location's "Class of business and exposure values" question
+  stores a JSON array with one entry per selected class code:
+  `[{"id":"91560","selected":true,"value":"250000"}]` — `selected` marks the classes operating at
+  that location, `value` is the exposure amount for that class. The amount's basis depends on the
+  class code AND the product (payroll for contractor trades, gross sales for retail/restaurants,
+  area for some premises classes, acres for vacant land) — the SAME code can rate on a different
+  basis per product: 61212 takes annual rents on `cglLRO` but building AREA on
+  `lroExcessStandalone`, where a rents-sized number reads as square footage and hard-declines on
+  appetite. Ask the user for the figure that fits the class and product. Restaurant classes split
+  food and liquor sales as two newline-separated numbers in one `value` string (`"400000\n50000"`).
+- **Subcontractors page (contractors).** "Does applicant hire subcontractors…" is a yes/no; a yes
+  cascades follow-ups including "What type of work is subcontracted?". That question does NOT take
+  the trade's own class code — it only accepts the "Contractors – Subcontracted Work" codes listed
+  in its type hint (91581/91583/91585/91591, by what the subcontractors build). Writing a trade code
+  there silently adds a phantom class to the submission and EXPOSURES starts demanding an exposure
+  for it.
+- **Exposure follow-through.** Every class code selected anywhere (vertical picker AND subcontracted
+  work) must get an entry in each location's exposure JSON — validation errors name any code left
+  without one.
+
+#### Excess standalone products (`contractorsExcessStandalone`, `lroExcessStandalone`)
+
+Excess submissions add an underlying-policy block: carrier (a huge validated select — search it by
+what the user says, offer close matches), A.M. Best confirmation, underlying premium, dates, and
+limits. Two of the limit questions ("General Aggregate Limit", "Products-Completed Operations
+Limit") list NO options — they store integers, so write plain numbers (`2000000`), never
+`"$2,000,000"` text (it passes validation but fails server-side). Their siblings that do list
+options ("Per Occurrence Limit") take the option text as usual.
+
+#### Value types and look-alike checkbox groups
+
+- Write numbers as numbers: year, count, and money questions reject numeric strings server-side, and
+  a `modify_submission` batch is all-or-nothing — one bad value rejects every change in the call.
+- When several checkbox groups share the same truncated header (e.g. three different "Select all of
+  the following that apply to any location: › None of the above" rows), a colliding write errors and
+  lists the full disambiguated paths — copy one back verbatim, including any `:_suffix` in the group
+  text. If a bare write silently satisfies only one of the look-alike groups, the progress counts
+  reveal the ones still missing.
 
 ### Renewals (`renew_risk`)
 
@@ -128,8 +217,9 @@ then `submit_risk`.
 
 `upload_risk_file` attaches a local file (loss runs, supplementals, ACORDs, signed docs) to a risk —
 ask for the file's path, confirm name and target risk, then upload and verify with
-`list_risk_files`. `delete_risk_file` is a soft remove by file EID; confirm before deleting, same as
-quotes.
+`list_risk_files`. For submission documents (ACORDs, supplementals), pass `extract: true` so
+extracted values prefill the application — track progress with `get_extraction_status`.
+`delete_risk_file` is a soft remove by file EID; confirm before deleting, same as quotes.
 
 ### Bind readiness (`check_bind_readiness`)
 
@@ -235,9 +325,10 @@ Only call `delete_quote` after an explicit "yes". Never default to delete when t
 
 ### Modifying submissions (`modify_submission`)
 
-Before modifying, call `list_fields` to see what fields actually exist on the risk and their current
-values. This is essential — fields vary by product type, and a draft with no product assigned may
-have no fields at all.
+In the conversational submission flow, `get_submission_questions` is the preferred discovery step:
+it returns the live question set with current labels, so you can modify directly without a separate
+lookup. Call `list_fields` instead for a quick label/value lookup outside that flow. Either way,
+fields vary by product type, and a draft with no product assigned may have no fields at all.
 
 - If `get_risk` shows "Product: (none assigned)", the risk needs a product type before fields can be
   modified.
@@ -250,6 +341,10 @@ Revenue") and resolves them internally. Use the exact labels from `list_fields` 
 
 If the user pastes unstructured data (broker email, correction form), extract field changes, verify
 the labels against `list_fields`, and confirm before executing.
+
+After a write, the tool reports any questions that appeared or disappeared as a result (the form is
+conditional) plus how many required answers remain — relay new questions to the user instead of
+re-listing everything.
 
 ### Cloning submissions (`clone_submission`)
 
