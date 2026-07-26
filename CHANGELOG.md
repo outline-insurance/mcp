@@ -5,6 +5,56 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.13] - 2026-07-26
+
+### Added
+
+Twelve tools closing capability gaps between the web app and the MCP. Each wraps a GraphQL operation
+the web frontend already uses; none required a server change.
+
+- `search_addresses` and `set_property_geocode` — resolve a street address to real candidates before
+  writing it, then store latitude, longitude and county on the property. Addresses written with
+  `modify_submission` were previously stored exactly as typed, with no county or coordinates for
+  appetite and hazard scoring to read. `set_property_geocode` writes despite the underlying API call
+  being shaped like a read, so it is guarded like any other write.
+- `get_recommended_class_codes` and `get_recommended_tenancy_types` — AI class-code and tenancy
+  suggestions derived from a risk's own answers and documents, ranked by confidence. Additive to the
+  keyword-based `search_class_codes` / `search_tenancy_types`, which remain unchanged. Only matches
+  scoring 0.8+ are returned, so an empty result is ambiguous rather than a verdict, and both tools
+  say so.
+- `select_markets` — choose which markets a not-yet-submitted risk goes to, by carrier name or UUID.
+  Write-only by necessity: no query in the API returns a risk's current market selection, so the
+  tool states plainly that it cannot show or verify current state.
+- `list_recoverable_drafts` — find never-submitted drafts to resume, which `list_risks` does not
+  surface. The default 7-1 day window excludes the last 24 hours; pass `days_ago_end: 0` for today.
+- `add_risk_note` — the write side of `get_risk_activity`. Always a `COMMENT`, and deliberately
+  offers no way to write the lifecycle activity types, since minting one would fake a state change
+  in the audit trail. Notes are permanent: nothing can edit or delete them.
+- New opt-in `claims` toolset — `list_pending_claims`, `flag_pending_claim`, `add_property_claim`
+  and `delete_property_claims`. Loss history drives pricing and was previously unreachable. Two
+  unrelated concepts are both called "claim" here and the tools describe themselves as distinct:
+  `flag_pending_claim` is a post-quote underwriting marker whose renewal cascade de-selects and
+  hides renewal quotes, while `add_property_claim` adds an empty loss-history row to a building.
+  `delete_property_claims` has no undo.
+- New opt-in `hazard` toolset — `order_wildfire_scores`. Queues a billable CoreLogic order and files
+  the report into Novidea. Internal ops/QA work; success means only that the job was queued, and
+  there is no way to check completion.
+
+### Changed
+
+- The default `core` payload grows from 49,861 bytes / 49 tools to 58,536 bytes / 56 tools as seven
+  of the twelve new tools land in core, leaving 1,464 bytes under the 60,000-byte budget. The
+  `claims` and `hazard` groups are opt-in, which is partly a judgement about scope — loss history
+  and paid vendor orders are not the everyday intake→bind loop — and partly the budget doing the
+  deciding. `toolsets.go` records both reasons, and notes that `list_pending_claims` should move
+  back to core if the budget is ever raised. For whoever hits the ceiling next: moving `claims` back
+  to core costs ~7,300 bytes and `hazard` ~2,100, so neither fits today, and the next core tool of
+  average size (~1,040 bytes) very nearly does not either.
+- SKILL.md's "Not covered by these tools" section was understating the gap: it listed only e-signing
+  and MTA. It now names what is genuinely absent — the MTA wizard, the e-sign ceremony, premium
+  financing, state surplus-lines subjectivity forms, policy-date changes on a bound quote, extracted
+  document field values, creating broker users, and risk import.
+
 ## [0.0.12] - 2026-07-26
 
 ### Added

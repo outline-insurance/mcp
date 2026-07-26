@@ -31,7 +31,7 @@ Every operation follows the same shape:
 
 ## Not every tool is loaded (`list_toolsets`, `enable_toolset`)
 
-Only the **core** group loads by default — everything in "The everyday loop" below. Four specialist
+Only the **core** group loads by default — everything in "The everyday loop" below. Six specialist
 groups are hidden from the tool list to keep the context payload small:
 
 | Group          | What is in it                                                                       |
@@ -40,6 +40,8 @@ groups are hidden from the tool list to keep the context payload small:
 | `policy`       | Cancel/reinstate a policy, non-renewal, and the carrier inspection stage            |
 | `properties`   | Adding, duplicating and deleting buildings on a multi-location risk                 |
 | `admin`        | Agency-network records, and the logged-in user's own profile and sharing scope      |
+| `claims`       | Loss-history rows on a building, and flagging a new claim against an issued quote   |
+| `hazard`       | Ordering third-party hazard data (wildfire scores) — internal ops/QA work           |
 
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
@@ -63,6 +65,19 @@ with `modify_submission` without loading the properties group.
 - `list_risks` — use for "show me my recent submissions" or "what's in the queue". Optionally filter
   by status (`DRAFT`, `SUBMITTED`, `QUOTED`, `BOUND`, `ISSUED`, `DECLINED`, `REFERRED`). Defaults to
   the 20 most recent; max 50.
+- `list_recoverable_drafts` — use for "did I leave something half-finished?". `list_risks` does not
+  surface never-submitted drafts; this does, with percent complete and product. Resume one with
+  `get_submission_questions` → `modify_submission` → `submit_risk`.
+
+    **The default window excludes today.** `days_ago_start` is the OLDER bound and must be strictly
+    GREATER than `days_ago_end` — an equal pair asks for a single instant and matches nothing, so it
+    is refused rather than returning a misleading empty list. The defaults (7 and 1) mean "created
+    between 7 days and 1 day ago", so a draft started this morning does not appear. Pass
+    `days_ago_end: 0` to include the last 24 hours. Add `include_agency: true` to also see
+    agency-shared drafts owned by colleagues. It is expensive — it rebuilds the question tree for
+    every draft and caps at 100 rows — so call it once, not in a loop. A row showing 0% and a named
+    insured of "New Submission" may be a genuinely empty draft or a backend hiccup; the tool says so
+    rather than reporting 0% as fact.
 
 ### Reading a risk (`get_risk`, `get_risk_activity`, `get_action_items`)
 
@@ -75,6 +90,22 @@ with `modify_submission` without loading the properties group.
 - `get_action_items` — use for "what's on my plate?", "anything I need to do?", or as a morning
   round-up. Defaults to the user's own risks; pass `scope: AGENCY` when they ask about their whole
   agency. Follow up on a specific item with `get_risk` / `get_risk_activity`.
+
+### Leaving a note (`add_risk_note`)
+
+The write side of `get_risk_activity`. Use it for "leave a note on this risk" or to record what was
+discussed with the insured. Takes `risk_id`, `quote_id` and `text`.
+
+**`quote_id` is required, and it is doing real work.** The API authorizes this write against the
+quote, and the tool derives the note's submission from that same quote — which is what stops a note
+landing on the wrong risk. Accepts a quote number, EID or UUID.
+
+**Permanent and append-only.** A note cannot be edited or deleted by any tool or by the app, calling
+twice leaves two notes, and it is visible to the owning agency and to Pathpoint staff (it may also
+notify them). So read `get_risk_activity` first rather than retrying a call whose outcome you are
+unsure of. The entry is always a `COMMENT`; the tool deliberately exposes no way to write the
+lifecycle activity types (`BOUND`, `ISSUED`, `SUBMITTED` and friends) because those are the server's
+to write and minting one would fake a state change in the audit trail.
 
 ### Discovering fields (`get_submission_questions`, then `list_fields`)
 
@@ -154,7 +185,10 @@ everything up front.
    option text — the tool maps them to values. For tenancy-type questions (the type hint reads
    "tenancy type"), ask what actually occupies the building, use `search_tenancy_types` to find
    candidates, offer the top matches conversationally, and write the exact returned value (for
-   multiple tenancies, one canonical string per line) — free text fails silently at rating.
+   multiple tenancies, one canonical string per line) — free text fails silently at rating. On a
+   risk that already has answers or uploaded documents, `get_recommended_tenancy_types` can suggest
+   tenancies from the risk's own data first; it returns bare codes, so still resolve each one
+   through `search_tenancy_types` to get the canonical string before writing it.
 7. **Loop** steps 5–6 until `get_submission_questions` reports all required questions answered and
    no validation errors. Mid-flow corrections ("actually the effective date is June 1") are just
    another `modify_submission` call.
@@ -194,6 +228,21 @@ Before calling:
 Validation failures come back listing the missing fields — relay them in plain English and offer to
 fill them. After a successful submit, the tool returns the refreshed risk summary; report which
 markets it went to and any instant quotes or declines.
+
+### Choosing markets (`select_markets`)
+
+Steers which markets a not-yet-submitted risk goes to. Accepts carrier names ("Kinsale") or market
+UUIDs, and takes `add_markets`, `remove_markets`, or both in one call.
+
+**It is write-only.** No query in the API returns a risk's current market selection, so this cannot
+show what is selected now and cannot diff before and after — and its success response is not proof
+the rows changed. Never tell the user you have verified the selection. A market may not appear in
+both lists: the server applies adds before removes, so it would silently net to removed, and the
+tool refuses that rather than guessing.
+
+Adds are idempotent and removing a market that was not selected does nothing, so a repeated call is
+harmless. This only affects where a risk goes **next** — it does not recall, cancel or unsend
+anything already submitted. Use `resubmit_risk` to go back out to markets.
 
 ### Quoting (`quote_risk`)
 
@@ -321,10 +370,24 @@ GL-family submissions classify the business with 5-digit class codes instead of 
 tenancies:
 
 - **Class of business page.** The vertical picker (type hint mentions class codes, e.g. "What type
-  of contractor is your applicant?") stores comma-separated 5-digit codes. Ask what the business
-  actually does, use `search_class_codes` to find candidates, offer the top matches in plain
-  English, then write the code(s) comma-separated (e.g. `"91560,91580"`). Free text fails
-  classification silently at rating — never invent codes.
+  of contractor is your applicant?") stores comma-separated 5-digit codes. On a risk that already
+  has answers or uploaded documents, try `get_recommended_class_codes` first — it suggests codes
+  from that risk's own data, ranked by confidence, with no search wording needed. Otherwise (or if
+  it comes back empty) ask what the business actually does and use `search_class_codes` to find
+  candidates. Either way, offer the top matches in plain English, then write the code(s)
+  comma-separated (e.g. `"91560,91580"`). Free text fails classification silently at rating — never
+  invent codes.
+
+    Both recommendation tools only return matches scoring 0.8 or above, so **an empty result is
+    ambiguous** — no completed aggregation job, or nothing confident enough (and for tenancy, a
+    third cause: the recommended tenancy is no longer in the catalog and was silently dropped). It
+    never means the risk cannot be classified; fall back to keyword search rather than reporting a
+    dead end.
+
+- **Tenancy recommendations.** `get_recommended_tenancy_types` is the tenancy equivalent, and has
+  one extra trap: it returns tenancy **codes only**. Resolve each code to the full canonical
+  `"<code>: <description>"` string with `search_tenancy_types` before writing it — a bare code fails
+  tenancy parsing silently at rating, exactly like an invented class code.
 - **Per-location exposures.** Each location's "Class of business and exposure values" question
   stores a JSON array with one entry per selected class code:
   `[{"id":"91560","selected":true,"value":"250000"}]` — `selected` marks the classes operating at
@@ -395,6 +458,27 @@ before the change.
 
 "Three buildings at two addresses" is `add_property` for the second address, then
 `duplicate_property` for the extra building.
+
+### Verifying an address (`search_addresses`, `set_property_geocode`)
+
+An address written with `modify_submission` is stored exactly as typed. Nothing validates it, and
+nothing derives the county or the coordinates that carrier appetite and hazard scoring read. Resolve
+it first, in this order: `search_addresses` → confirm the candidate with the user →
+`modify_submission` for street/city/state/ZIP → `set_property_geocode`.
+
+- `search_addresses` — AWS address autocomplete. Needs a street number and a street name; a bare
+  city is refused locally, the same rule the web client applies. Returns full candidates each
+  carrying a `place_id`. **An empty result is ambiguous** — the server swallows AWS errors and
+  returns nothing — so it is never proof the address is wrong.
+- `set_property_geocode` — takes a `place_id` plus the `entity_id` of the property (from
+  `list_properties`) and stores latitude, longitude and county on it, returning the county.
+
+Two things about `set_property_geocode` that its name does not tell you. It **writes**, even though
+the underlying API call is shaped like a read, so it takes `confirm_prod` on prod. And `entity_id`
+is not optional: without it the server returns nulls and writes nothing at all, silently. The write
+is best-effort — failures, including a permissions failure on the property, are logged and discarded
+server-side while the county still comes back — so treat success as "the lookup happened", not "the
+values persisted". Re-read with `list_fields` if it matters.
 
 ## Working the rest of the risk
 
@@ -714,12 +798,103 @@ Partner/network records, not risk work. All three require the `GLOBAL_MANAGE_AGE
   created afterwards (that is `update_my_profile(share_risks=…)`), and for a single risk use
   `share_risk`.
 
+## Loss history (claims toolset)
+
+Load with `enable_toolset` — these four tools are hidden by default.
+
+**Two unrelated things are both called "claim" here.** Getting them confused will produce a very
+wrong answer, so establish which the user means before touching anything:
+
+- A **property claim** is a row on a building's loss-history questionnaire — submission data,
+  entered while drafting. `add_property_claim`, `delete_property_claims`.
+- A **pending claim** is a marker saying a NEW claim has been reported since a quote was issued — a
+  post-quote underwriting trigger with side effects far beyond the risk. `list_pending_claims`,
+  `flag_pending_claim`.
+
+### Property claims
+
+- `add_property_claim` — adds one **empty** loss-history row to a building. Takes `property_id`
+  (from `list_properties`) and `risk_id`. It carries no claim data and does not return the new row's
+  id, so it is only half the job: fill it in afterwards with `modify_submission` against the labels
+  `Claim Amount`, `Claim Type`, `Claim Date`, `Claim Description` and `Claim Fully Repaired`. The
+  building's own gate question ("Has this location had any claims in the last 5 years?") must be
+  answered yes for the group to appear. Calling twice adds two empty rows.
+
+    The tool enumerates the risk's buildings first and refuses unless `property_id` is one of them —
+    including when that list cannot be read. The server does not make that check itself (it
+    authorizes against `risk_id` and then writes to whatever `property_id` it is handed), so this is
+    the only thing standing between a mistyped id and a claim landing on someone else's risk.
+
+- `delete_property_claims` — removes loss-history rows by id. **There is no undo through any API** —
+  the row is orphaned rather than erased, so its values survive in the database, but nothing exposed
+  re-attaches it and `add_property_claim` only ever creates a new empty row. Treat it as permanent
+  and expect the data to be re-entered. The batch is all-or-nothing, so one unknown id fails the
+  call and deletes nothing, which at least makes retry-after-fix safe. Deleting an already-deleted
+  row silently succeeds. Remaining rows renumber positionally, so never echo "Claim 2" back without
+  re-reading.
+
+    **Finding the ids is the hard part, and today the MCP cannot.** No query returns claim ids —
+    they exist only inside the app's question-group ids. If a user wants a specific claim removed,
+    say so plainly and point them at the app rather than guessing at an id.
+
+    The tool does still check ownership before deleting: it enumerates the risk's own loss-history
+    rows and refuses the whole batch if any `claim_id` is not among them, including when that list
+    cannot be read. That check is the only thing standing in the way — the server authorizes against
+    `risk_id` and then deletes whatever `claim_ids` it is handed, so ids from another risk would
+    otherwise be orphaned under this risk's authorization.
+
+### Pending claims
+
+- `list_pending_claims` — pending claims on a quote. Defaults to active only; pass
+  `include_disabled: true` to see cleared ones too. An unknown or foreign `quote_id` is a
+  permissions error, not an empty list.
+- `flag_pending_claim` — records that a new claim has been reported against a quote. **Read the
+  blast radius to the user before calling.** If the quote's risk has renewals, one call also syncs
+  Novidea (Salesforce), clears the broker's selected quote on every renewal, hides every **VAVE**
+  renewal quote from the broker, and writes a carrier-worded `REFERRED` activity saying underwriting
+  review is required. Quotes already bound, issued, or with a live bind request are spared.
+  **Clearing any of this is only possible in the app**, so confirm before, not after. The API itself
+  does not de-duplicate, but the tool does: it reads the live markers first and refuses if the quote
+  is already flagged, so a repeated call is safe and its refusal is not an error to route around.
+
+## Hazard data (hazard toolset)
+
+Load with `enable_toolset` — this one tool is hidden by default.
+
+- `order_wildfire_scores` — orders CoreLogic wildfire scores for a risk's western-state locations
+  and files the report into Novidea. **Internal ops/QA work, not part of the broker flow** — the web
+  app hides its only button behind a QA permission flag, so do not offer it to a broker unprompted.
+
+    **It only queues.** Success means the job was accepted onto a queue and nothing more: no scores
+    fetched, no report filed, nothing in Novidea changed yet. There is no query anywhere for the
+    status of a wildfire order, so completion can only be confirmed in Novidea or by ops — never
+    from here. Never call it a second time to check whether it worked: every call is a fresh
+    **billable** vendor order (two live CoreLogic requests per location, no dedupe). And two silent
+    no-ops are normal rather than bugs — the worker orders nothing if no carrier on the risk
+    requires wildfire scores, or if the risk has no western-state locations.
+
 ## Not covered by these tools (use the app)
 
-E-signing (the interactive signing ceremony) and mid-term adjustments (the MTA wizard creates a
-separate risk). When users ask for these, point them to the app rather than improvising. Endorsement
-requests, policy cancellation, non-renewal and inspection compliance ARE covered — check
-`list_toolsets` before telling a user something isn't available.
+Check `list_toolsets` before telling a user something is unavailable — most of what looks missing is
+merely a hidden group. What genuinely is not here:
+
+- **E-signing** — the interactive signing ceremony, and the signing URL and manual-sign fallback
+  documents.
+- **Mid-term adjustments** — the MTA wizard, which previews a premium delta and creates a separate
+  risk. Distinct from `create_endorsement_request`, which files an ops-mediated request and does not
+  price the change.
+- **Premium financing** — financing estimates and payment programs.
+- **State surplus-lines subjectivity forms** — the per-state forms that can block a bind. Ordinary
+  subjectivities ARE covered by `list_subjectivities` and `answer_subjectivity`.
+- **Changing policy dates on a bound quote.**
+- **Extracted document field values** — `get_extraction_status` reports how extraction is going, but
+  the extracted values themselves, and cancelling a running extraction, are app-only.
+- **Creating broker users** — the `admin` toolset covers agency-network records and the logged-in
+  user's own profile, not adding people.
+- **Importing a risk from JSON.**
+
+Endorsement requests, policy cancellation, non-renewal, inspection compliance, loss history and
+wildfire orders ARE covered — in the `endorsements`, `policy`, `claims` and `hazard` toolsets.
 
 ## Display Formatting
 
