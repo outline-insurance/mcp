@@ -1,0 +1,22 @@
+CHANGELOG.md
+  h_194a284e451779 8-63
+README.md
+  h_194a284e451779 5,105-120,128-129
+SKILL.md
+  h_194a284e451779 276-277,292-293,304-307
+index.html
+  h_194a284e451779 251,521
+install.ps1
+  h_194a284e451779 24-159,244-259,261,264-289,312-322,326-344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "e89de11a36c1f03e52b53063e4bf9da4586d416b",
+  "prompts": {},
+  "humans": {
+    "h_194a284e451779": {
+      "author": "Dan Clark <dclark@pathpoint.com>"
+    }
+  }
+}
