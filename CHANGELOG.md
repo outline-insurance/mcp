@@ -5,6 +5,62 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.14] - 2026-08-03
+
+### Added
+
+- `quote_risk` and `update_quote` now take `includes_wind` and `est_cost_wind`, mapping to
+  `QuoteOptions.includesWind` and `QuoteOptions.estCostWind`. Wind coverage and the wind portion of
+  the premium were previously unreachable from the MCP: a quote could be written but its wind fields
+  could not, so a quote carrying a wind component had to be finished in the app.
+- Both parameters are routed off pointers rather than off the zero-value rule the fee parameters
+  follow, because for wind a zero is a real instruction rather than an absent one. Omitting a
+  parameter leaves the existing value alone — the key is not sent at all — but
+  `includes_wind: false` is sent, and is the only way to drop wind coverage from a quote, and
+  `est_cost_wind: 0` is sent, and is the only way to clear a wind cost that was already set. This is
+  deliberately unlike `agency_fee`, `tria` and the other fee parameters, where a 0 is
+  indistinguishable from "not supplied" and is dropped. A new `optionalFloat` helper implements it,
+  alongside the existing `optionalBool`.
+- `est_cost_wind` is validated rather than coerced-or-dropped. A value that is present but is not a
+  number (`"lots"`, `true`, `null`, an overflowing literal like `"1e400"`, or a non-finite `NaN` /
+  `Inf`) now fails the call with `est_cost_wind must be a number, got "lots"`. It previously read as
+  "absent", so `update_quote {premium: 1234, est_cost_wind: "lots"}` wrote the premium, discarded
+  the wind cost, and reported success.
+- `get_quote` reads both values back, so the wind fields appear in the quote detail output and a
+  before/after on an `update_quote` can actually be shown.
+
+### Changed
+
+- The default `core` payload grows from 58,536 to 59,104 bytes as the four new parameters land on
+  two core tools, leaving 896 bytes under the 60,000-byte budget. Nothing moved out of core to make
+  room, and at this margin the next core tool of average size (~1,040 bytes) does not fit.
+
+### Fixed
+
+- The Windows installer reported "Claude Desktop not detected" and skipped MCP setup on machines
+  where `%APPDATA%\Claude` doesn't exist, leaving `p.exe` installed but unreachable from Claude
+  Desktop. Adding the config by hand didn't help either, for a separate reason: Claude Desktop now
+  ships as an MSIX package that runs in an app container, so when it reads `%APPDATA%\Claude`
+  Windows redirects that to the package's private cache. The file it actually reads is
+  `%LOCALAPPDATA%\Packages\Claude_<hash>\LocalCache\Roaming\Claude\claude_desktop_config.json`. The
+  installer now probes both layouts and writes each one it finds.
+- Two paths look correct and do nothing, which is what made this hard to diagnose:
+  `%LOCALAPPDATA%\Claude\` is the _log_ directory, and Settings → Developer → "Edit Config" opens
+  the non-virtualized `%APPDATA%` copy that the containerized app never reads.
+- The config is now written as UTF-8 without a BOM. `Set-Content -Encoding UTF8` emits one on
+  Windows PowerShell 5.1, and a leading BOM makes `JSON.parse` throw, so the app behaved as though
+  there were no config at all.
+- An existing config that isn't valid JSON is no longer clobbered, and no longer aborts the
+  installer. The MSIX file also holds Claude Desktop's own preferences, so it is merged, never
+  overwritten.
+- The "wire it up by hand" fallback emitted invalid JSON: the executable path was interpolated raw,
+  so `C:\Users\...` contained the illegal escape `\U` and the printed config was rejected by the
+  app. It is now escaped properly, and says to merge the `pathpoint` entry rather than replace the
+  file.
+- A locked or unwritable config no longer aborts the whole install at the first candidate; each is
+  attempted and failures are reported per target. The closing message reflects what actually
+  happened instead of always printing "Done".
+
 ## [0.0.13] - 2026-07-26
 
 ### Added

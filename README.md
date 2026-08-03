@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.13** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+Current release: **v0.0.14** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 ## Install
 
@@ -102,6 +102,22 @@ If the one-liner doesn't fit your environment:
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Linux: `~/.config/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+   On Windows, don't trust that path blindly. The MSIX build of Claude Desktop runs in an app
+   container and actually reads
+   `%LOCALAPPDATA%\Packages\Claude_<hash>\LocalCache\Roaming\Claude\claude_desktop_config.json`.
+   Two traps to know about:
+   - Settings → Developer → **Edit Config** opens the *non-virtualized* `%APPDATA%\Claude\` copy
+     on MSIX installs, which the app never reads. Editing what that button opens does nothing.
+   - `%LOCALAPPDATA%\Claude\` is the *log* directory, not a config directory.
+
+   To find the file the app really reads:
+   ```powershell
+   Get-ChildItem "$env:LOCALAPPDATA\Packages" -Directory |
+     Where-Object { $_.Name -match '(^|\.)Claude_' } |
+     ForEach-Object { Join-Path $_.FullName 'LocalCache\Roaming\Claude\claude_desktop_config.json' }
+   ```
+   If that returns nothing, you have a classic install and `%APPDATA%\Claude\` is correct.
 4. Restart Claude Desktop.
 
 ## Troubleshooting
@@ -109,6 +125,8 @@ If the one-liner doesn't fit your environment:
 | Symptom | Fix |
 |---------|-----|
 | Windows SmartScreen warning | Click "More info → Run anyway". One-time per version. |
+| Windows: "Claude Desktop not detected" | Launch Claude Desktop once, then re-run the installer. It creates its config directory on first run. |
+| Windows: installer says it configured the MCP server, but `pathpoint` isn't in Connectors | Fully quit Claude Desktop (tray icon too) and reopen — the config is read only at startup. If it's still missing, check the path the installer printed against the "Manual install" note above; on MSIX installs the config lives under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\`, not `%APPDATA%`. |
 | macOS "developer cannot be verified" | `xattr -d com.apple.quarantine "$(which p)"` once. |
 | `p login` doesn't open a browser | Paste the URL from the terminal into any browser on the same machine. |
 | Session expired | `p logout` then `p login --endpoint <env>` again. |

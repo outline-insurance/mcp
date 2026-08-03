@@ -273,6 +273,8 @@ Always ask:
 - **Quote number** — optional
 - **Fees** — agency, company, stamping, inspection (ask once, skip if none)
 - **TRIA** — optional
+- **Wind** — `includes_wind` (does the quote cover wind) and `est_cost_wind` (the wind portion of
+  the premium), both optional
 - **Admitted or non-admitted** — default non-admitted (omit `admitted` to keep the default). Pass
   `admitted: true` for admitted.
 - **Comment** — optional
@@ -287,8 +289,8 @@ the same quote number will just fail again.
 ### Viewing quote details (`get_quote`)
 
 When the user asks about a specific quote, use `get_quote` to show the full picture — cost breakdown
-(premium, fees, taxes), limits, subjectivities, and status flags. If the user picks a quote from the
-`get_risk` summary, use the EID shown there.
+(premium, fees, taxes), limits, wind coverage and its estimated cost, subjectivities, and status
+flags. If the user picks a quote from the `get_risk` summary, use the EID shown there.
 
 ### Updating quotes (`update_quote`)
 
@@ -299,7 +301,10 @@ the tool parameters.
 
 Limit parameters are routed by product the same way as `quote_risk`, including package products. To
 flip an admitted quote to non-admitted, pass `admitted: false` explicitly (omitting it leaves the
-current value alone).
+current value alone). Wind behaves the same way: pass `includes_wind: false` explicitly to drop wind
+coverage, and `est_cost_wind: 0` explicitly to clear a previously-set wind cost. Both are sent as
+written — unlike the fee parameters, where a 0 reads as "not supplied" and is omitted — so omitting
+them is what leaves the current values alone.
 
 Show a before/after summary before executing.
 
