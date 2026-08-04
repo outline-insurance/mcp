@@ -37,9 +37,9 @@ groups are hidden from the tool list to keep the context payload small:
 | Group          | What is in it                                                                       |
 | -------------- | ----------------------------------------------------------------------------------- |
 | `endorsements` | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it |
-| `policy`       | Cancel/reinstate a policy, non-renewal, and the carrier inspection stage            |
+| `policy`       | Cancel/reinstate a policy, non-renewal, undo a mistaken bind, carrier inspections   |
 | `properties`   | Adding, duplicating and deleting buildings on a multi-location risk                 |
-| `admin`        | Agency-network records, and the logged-in user's own profile and sharing scope      |
+| `admin`        | Agency-network and agency records (commissions), your own profile and sharing scope |
 | `claims`       | Loss-history rows on a building, and flagging a new claim against an issued quote   |
 | `hazard`       | Ordering third-party hazard data (wildfire scores) — internal ops/QA work           |
 
@@ -547,6 +547,28 @@ Only call `delete_quote` after an explicit "yes". Never default to delete when t
 The undo for `request_bind` — use when the client backs out or the wrong quote was requested. Always
 collect a reason (it goes to the Pathpoint team) and confirm before calling.
 
+### Changing policy dates (`update_policy_dates`)
+
+The fix when a quoted risk's effective date has slipped — the classic blocker between "quote
+selected" and "bind requested". Writes the new effective/expiration dates on both the application
+and the quote, recalculates the quote's grace period, and queues a Novidea update. Three things to
+keep straight:
+
+- **It does not re-rate.** Premium and terms are untouched; for a large date move the carrier may
+  require a fresh quote (`resubmit_risk`) instead. Before any quote exists this tool is the wrong
+  one anyway — pre-quote, the effective date is submission data and feeds rating, so use
+  `modify_submission`.
+- Both dates are required. Don't silently assume an annual term: confirm the expiration with the
+  user (most policies are effective + 1 year, but not all).
+- Documents generated earlier (quote letter, ACORDs) keep the old dates until regenerated.
+
+It operates on the risk's **selected quote only** — the mutation rewrites the application's policy
+dates along with the quote's, so pointing it at a non-selected quote would leave the application and
+the quote being bound disagreeing. If nothing is selected yet, `select_quote` first.
+`quote_identifier` is accepted as confirmation but must name the selected quote. Bound quotes are
+refused outright: those dates belong to an active policy, and changing them is endorsement work
+(`create_endorsement_request`), not a pre-bind fix.
+
 ### Resubmitting (`resubmit_risk`)
 
 Use after quotes expire, markets decline, or the submission changed — "get me fresh quotes" or
@@ -659,7 +681,7 @@ moves. Verify with `get_quote_documents`.
 
 ## After the bind: servicing a policy (policy toolset)
 
-Load with `enable_toolset` — these five tools are hidden by default.
+Load with `enable_toolset` — these six tools are hidden by default.
 
 ### Inspections (`get_inspection_status`, `upload_proof_of_inspection`)
 
@@ -707,7 +729,24 @@ carrier except Vave, these tools are the only in-product way to end a policy at 
 Identify the policy with `risk_id`; the single bound quote is used by default, and
 `quote_identifier` picks one when a risk has several.
 
-## Endorsements & cancellations (endorsements toolset)
+### Undoing a mistaken bind (`undo_bind`)
+
+Admin only (`GLOBAL_ACCESS_PROTECTED_RESOURCE`). The correction for a bind that should never have
+happened — wrong quote bound, ops error, a bind recorded against the wrong risk. It clears the
+quote's bound/issued state so the risk drops back into the bind-requested stage, and it DELETES the
+Bound/Issued activity rows, which cannot be restored. That deletion is why this needs an explicit,
+confirmed user request — never suggest it as a routine step backwards.
+
+Two boundaries to respect:
+
+- A policy that legitimately existed and now needs to end is a **cancellation**
+  (`cancel_or_reinstate_policy`), which preserves the record that coverage was in force. Undo is
+  only for binds that were mistakes from the start.
+- The bind request survives the undo. If the agent no longer wants to bind at all, follow with
+  `cancel_bind_request`.
+
+Same targeting as the other policy tools: `risk_id`, with the single bound quote picked by default.
+The tool shows the state before and after so what changed is on the record.
 
 Bound policies only. Load with `enable_toolset` — these six tools are hidden by default.
 
@@ -763,7 +802,7 @@ Three things to know before driving any of this:
 
 ## Administration (admin toolset)
 
-Load with `enable_toolset` — these six tools are hidden by default.
+Load with `enable_toolset` — these eight tools are hidden by default.
 
 ### Agency networks (`list_agency_networks`, `create_agency_network`, `update_agency_network`)
 
@@ -776,6 +815,28 @@ Partner/network records, not risk work. All three require the `GLOBAL_MANAGE_AGE
   account id, `appointed` and `hide_commission` are optional.
 - `update_agency_network` — identify the network by that id. Only the fields you pass are changed,
   so read the record back to the user before and after.
+
+### Agencies & commissions (`search_agencies`, `set_agency_commission`)
+
+The level below networks: the individual agency, whose commission percentages are what the agency is
+actually paid per bind. Both require `GLOBAL_MANAGE_AGENCY`.
+
+- `search_agencies` — find agencies by name and read their commission setup. Names are SQL LIKE
+  patterns, so `"Acme%"` matches every agency starting with Acme; a plain name must match exactly.
+  Each hit shows the `groupId` (what the setter takes), both commission percentages, network
+  membership and flags.
+- `set_agency_commission` — write `commission_percent` and/or `mm_commission_percent` on one agency,
+  by `groupId`. Values are whole percents (`9.0` = 9%), above 0 and at most 15 — the database
+  constrains agency commissions to that range, and the tool refuses out-of-range values before the
+  mutation because the server would half-apply them (the unconstrained legacy row is written first).
+  Zero is additionally refused because the server's Novidea sync drops falsy values — a 0 would be
+  stored in Pathpoint but silently kept at the old rate in Novidea. Only what you pass changes, and
+  the change syncs to Novidea. Show the user the current record from `search_agencies` and get a
+  clear "yes" before writing — this changes real payouts.
+
+Network membership is deliberately NOT settable here: reassigning an agency to a network makes the
+server reset these percentages to the network's defaults, so that stays in the app. Network-level
+default commissions live on `update_agency_network` above.
 
 ### Your own profile (`get_my_profile`, `update_my_profile`, `set_risk_sharing_scope`)
 

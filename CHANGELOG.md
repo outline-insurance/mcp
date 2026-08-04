@@ -5,6 +5,49 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.0.15] - 2026-08-04
+
+### Added
+
+- `update_policy_dates` (core): change the policy effective/expiration dates on a quoted risk — the
+  post-quote path the web app's subjectivities page uses (`updatePolicyDates`). Updates the
+  application and the quote, recalculates the grace period, and queues a Novidea update; it does not
+  re-rate. Operates on the risk's selected quote only (the mutation rewrites the risk-wide
+  application dates alongside the quote's, so a non-selected target would desync the two), refuses
+  bound quotes (post-bind date changes are endorsements), and shows old → new dates. Reports failure
+  unless the payload's `success` flag is actually true.
+- `undo_bind` (policy toolset): the ops correction for a mistaken bind (`undoBindIssueQuote`, admin
+  only). Clears the quote's bound/issued state and deletes the Bound/Issued activity rows — the tool
+  spells out that the deletion is unrecoverable, refuses quotes that are not bound, and shows the
+  policy state before and after.
+- `search_agencies` and `set_agency_commission` (admin toolset): read and set per-agency commission
+  percentages (`agencies` / `updateAgency`, both `GLOBAL_MANAGE_AGENCY`). Search takes SQL LIKE name
+  patterns and prints each agency's `groupId`, both commission percentages and network membership.
+  The setter only ever sends the two commission fields — `updateAgency`'s network-reassignment
+  cascade (which overrides commission inputs with network defaults) is structurally unreachable, and
+  a registry test pins that. Values are validated to the database's (0, 15] range before the
+  mutation runs — the resolver writes the unconstrained legacy groups row before the constrained
+  agencies row, so a server-side rejection would half-apply — and 0 is refused with its own message:
+  the resolver's Novidea enqueue drops falsy values, so a zero would land in Pathpoint but leave
+  Novidea at the old rate.
+- Coterie in `markets.go`: the carrier landed in `shared/constants` (PAR-4658) without the `p`-side
+  mirror, so `quote_risk`/`select_markets` rejected it and two parity tests were failing. Added the
+  alias and market UUID.
+
+### Changed
+
+- The sentence "Pass confirm_prod=true when the active session is pointed at prod." was removed from
+  every tool description that carried it (~20). It duplicated the `confirm_prod` parameter's own
+  description inside the same tool JSON, and the ~1.2 KB it cost was what pushed the core tools/list
+  payload over its 60 KB budget when `update_policy_dates` joined core.
+
+- Generated `p mutation <name>` commands now say which environment they will hit. The confirmation
+  prompt reads `About to run mutation <name> against <env>. Continue? [y/N]`, and when the prompt is
+  skipped with `--yes` a `Running mutation <name> against <env>` line is printed to stderr instead,
+  so a mutation can never run without the target environment being shown.
+
 ## [0.0.14] - 2026-08-03
 
 ### Added
