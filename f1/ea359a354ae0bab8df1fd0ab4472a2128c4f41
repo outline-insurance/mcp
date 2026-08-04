@@ -1,0 +1,20 @@
+CHANGELOG.md
+  h_194a284e451779 8-50
+README.md
+  h_194a284e451779 5
+SKILL.md
+  h_194a284e451779 40,42,550-571,684,732-749,805,819-840
+index.html
+  h_194a284e451779 251,521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "f1ea359a354ae0bab8df1fd0ab4472a2128c4f41",
+  "prompts": {},
+  "humans": {
+    "h_194a284e451779": {
+      "author": "Dan Clark <dclark@pathpoint.com>"
+    }
+  }
+}
