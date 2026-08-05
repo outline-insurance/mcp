@@ -14,8 +14,9 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Repo       = if ($env:P_REPO)        { $env:P_REPO }        else { 'outline-insurance/mcp' }
-$Version    = if ($env:P_VERSION)     { $env:P_VERSION }     else { 'latest' }
+$Repo          = if ($env:P_REPO)     { $env:P_REPO }        else { 'outline-insurance/mcp' }
+$Version       = if ($env:P_VERSION)  { $env:P_VERSION }     else { 'latest' }
+$PinnedVersion = [bool]$env:P_VERSION
 $InstallDir = if ($env:P_INSTALL_DIR) { $env:P_INSTALL_DIR } else { "$env:LOCALAPPDATA\Pathpoint" }
 $SkillDir   = if ($env:P_SKILL_DIR)   { $env:P_SKILL_DIR }   else { "$env:USERPROFILE\.claude\skills\Pathpoint" }
 
@@ -157,6 +158,98 @@ function Set-PathpointMcpServer([string]$ConfigDir, [string]$ExePath) {
     return $cfgPath
 }
 
+# Run the claude CLI with all output suppressed; $true on exit code 0.
+# $ErrorActionPreference is 'Stop' script-wide, and on Windows PowerShell 5.1
+# redirecting a native command's stderr under 'Stop' turns any stderr line
+# into a terminating NativeCommandError even when the command succeeds -- so
+# drop to 'Continue' for the duration of the call.
+function Invoke-ClaudeQuiet {
+    param([string[]]$CliArgs)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & claude @CliArgs *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
+# Returns the pathpoint plugin's actual state: 'enabled', 'disabled',
+# 'absent', or 'unknown' when it can't be determined (e.g. a claude CLI
+# without `plugin list --json`). Callers treat the states asymmetrically: a
+# disabled plugin must not suppress the plain-skill fallback (the user would
+# be left with no active skill), while 'unknown' must not override a
+# successful install (that would hand out duplicate skills instead).
+function Get-PathpointPluginState {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $raw = (& claude plugin list --json 2>$null) | Out-String
+        if ($LASTEXITCODE -ne 0 -or -not $raw.Trim()) { return 'unknown' }
+        # The plugin can be installed at several scopes at once; if any entry
+        # is enabled the skill will load, so that is the effective state.
+        $entries = @(@($raw | ConvertFrom-Json) | Where-Object { $_.id -eq 'pathpoint@outline-insurance' })
+        if ($entries.Count -eq 0) { return 'absent' }
+        if (@($entries | Where-Object { $_.enabled }).Count -gt 0) { return 'enabled' }
+        return 'disabled'
+    } catch {
+        return 'unknown'
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
+# Which source the registered 'outline-insurance' marketplace points at:
+# 'ours' (some field references this repo), 'other' (the name is taken by a
+# different source), 'absent', or 'unknown' when it can't be determined.
+# Only 'other' changes behavior -- the installer must not refresh or trust
+# a marketplace it didn't register, since `marketplace update` and
+# `plugin install` address it by name alone.
+function Get-PathpointMarketplaceState {
+    param([string]$ExpectedRepo)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $raw = (& claude plugin marketplace list --json 2>$null) | Out-String
+        if ($LASTEXITCODE -ne 0 -or -not $raw.Trim()) { return 'unknown' }
+        # Strict equality against known source shapes -- substring matching
+        # would let a hostile URL like https://evil.example/outline-insurance/mcp
+        # pass. A legitimate-but-unrecognized shape reads as 'other', which
+        # only costs the plugin path (the plain skill still installs).
+        $repoNorm = $ExpectedRepo.Trim().ToLowerInvariant()
+        $normalize = {
+            param($v)
+            $s = "$v".Trim().ToLowerInvariant().TrimEnd('/')
+            if ($s.EndsWith('.git')) { $s = $s.Substring(0, $s.Length - 4) }
+            return $s
+        }
+        $expected = @(
+            $repoNorm,
+            "https://github.com/$repoNorm",
+            "http://github.com/$repoNorm",
+            "git@github.com:$repoNorm",
+            "ssh://git@github.com/$repoNorm"
+        )
+        foreach ($m in @($raw | ConvertFrom-Json)) {
+            if ($m.name -eq 'outline-insurance') {
+                if ((& $normalize $m.source) -eq 'github' -and (& $normalize $m.repo) -eq $repoNorm) { return 'ours' }
+                foreach ($v in $m.PSObject.Properties.Value) {
+                    if ($v -is [string] -and $expected -contains (& $normalize $v)) { return 'ours' }
+                }
+                return 'other'
+            }
+        }
+        return 'absent'
+    } catch {
+        return 'unknown'
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 # Resolve "latest" via the GitHub API.
 if ($Version -eq 'latest') {
     try {
@@ -230,14 +323,143 @@ try {
         Write-Host "Added $InstallDir to user PATH. Open a new terminal for it to take effect."
     }
 
-    # Install Claude Code skill if the release ships SKILL.md.
-    try {
-        $skillTxt = (Invoke-WebRequest -Uri "$BaseUrl/SKILL.md" -UseBasicParsing -ErrorAction Stop).Content
-        New-Item -ItemType Directory -Path $SkillDir -Force | Out-Null
-        Set-Content -Path (Join-Path $SkillDir 'SKILL.md') -Value $skillTxt -Encoding UTF8
-        Write-Host "Installed Pathpoint skill to $SkillDir\"
-    } catch {
-        # SKILL.md not in release — skip.
+    # Claude Code integration. Preferred path: register the public repo as a
+    # plugin marketplace and install the versioned `pathpoint` plugin --
+    # skill plus the `p mcp-serve` MCP server -- so `claude plugin update`
+    # (or re-running this installer) picks up new releases. Falls back to a
+    # plain skills-dir copy when the claude CLI isn't on PATH or its plugin
+    # commands fail (e.g. an older CLI). All of this is best-effort -- it
+    # must never fail the binary install.
+    $PluginInstalled = $false
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+        # Explicit HTTPS git URL: the bare <owner>/<repo> shorthand clones
+        # over SSH by default, which most users haven't set up for GitHub.
+        $MarketplaceUrl = "https://github.com/$Repo.git"
+        $PluginCmdsOk = $false
+
+        function Write-PluginFallbackNote {
+            Write-Host "Couldn't install the Claude Code plugin automatically; falling back to the plain skill."
+            Write-Host "To retry the plugin by hand:"
+            Write-Host "  claude plugin marketplace add $MarketplaceUrl"
+            Write-Host "  claude plugin install pathpoint@outline-insurance --scope user"
+        }
+        function Write-PluginPathNote {
+            # The plugin starts its MCP server as `p` from PATH, and the
+            # PATH update this run makes only reaches new processes.
+            if (($env:Path -split ';') -notcontains $InstallDir) {
+                Write-Host "note: the plugin's MCP server runs 'p' from your PATH. Start Claude Code"
+                Write-Host "      from a new terminal (so the PATH update above takes effect) or it"
+                Write-Host "      won't be able to start the server."
+            }
+        }
+
+        # A marketplace named 'outline-insurance' that points somewhere else
+        # means the name has been claimed by another source -- every plugin
+        # command below addresses the marketplace by name, so running them
+        # would install from the impostor. Refuse the whole plugin path.
+        $MpState = Get-PathpointMarketplaceState -ExpectedRepo $Repo
+        if ($MpState -eq 'other') {
+            Write-Warning "A plugin marketplace named 'outline-insurance' is already registered but points at a different source than $MarketplaceUrl."
+            Write-Warning "Refusing to install or trust the plugin through it; using the plain skill instead."
+            Write-Warning "If that marketplace isn't something you set up on purpose, replace it and re-run this installer:"
+            Write-Warning "  claude plugin marketplace remove outline-insurance"
+        } elseif ($PinnedVersion) {
+            # A pinned install must be fully pinned. The plugin tracks the
+            # repo's main branch (i.e. the latest release), so use the pinned
+            # release's own SKILL.md below instead.
+            Write-Host "P_VERSION is set; skipping the Claude Code plugin (it tracks the latest release)."
+        } else {
+            Write-Host "Claude Code detected; installing the Pathpoint plugin..."
+            # `update` first: on re-runs it refreshes the already-registered
+            # catalog (a stale catalog would pin the old plugin version); on
+            # first runs it fails fast and `add` registers the marketplace.
+            $mpOk = (Invoke-ClaudeQuiet @('plugin', 'marketplace', 'update', 'outline-insurance')) -or
+                    (Invoke-ClaudeQuiet @('plugin', 'marketplace', 'add', $MarketplaceUrl))
+            if ($mpOk) {
+                $PluginCmdsOk = (Invoke-ClaudeQuiet @('plugin', 'install', 'pathpoint@outline-insurance', '--scope', 'user')) -or
+                                (Invoke-ClaudeQuiet @('plugin', 'update', 'pathpoint@outline-insurance'))
+            }
+        }
+
+        # Exit codes above aren't the full story: `plugin install` on an
+        # already-installed-but-disabled plugin succeeds without enabling it
+        # (the user's disable persists by design). Probe the actual state
+        # and treat it per Get-PathpointPluginState's contract. Skipped
+        # entirely when the marketplace name is claimed by another source --
+        # a plugin from there must not suppress the plain skill.
+        $PluginState = 'absent'
+        if ($MpState -ne 'other') { $PluginState = Get-PathpointPluginState }
+        switch ($PluginState) {
+            'enabled' {
+                $PluginInstalled = $true
+                if ($PinnedVersion) {
+                    Write-Host "note: the pathpoint Claude Code plugin is already installed and tracks the latest"
+                    Write-Host "      release -- P_VERSION pins the binary only. To pin fully, remove it first:"
+                    Write-Host "        claude plugin uninstall pathpoint@outline-insurance"
+                } elseif ($PluginCmdsOk) {
+                    Write-Host "Installed the Pathpoint plugin for Claude Code (pathpoint@outline-insurance)."
+                    Write-PluginPathNote
+                } else {
+                    Write-Host "Plugin refresh failed; keeping the already-installed pathpoint plugin."
+                }
+            }
+            'disabled' {
+                Write-Host "note: the pathpoint Claude Code plugin is installed but disabled; leaving it"
+                Write-Host "      alone and using the plain skill instead. To switch to the plugin:"
+                Write-Host "        claude plugin enable pathpoint@outline-insurance"
+                Write-Host "        del `"$SkillDir\SKILL.md`"   # then drop the plain copy so it isn't loaded twice"
+            }
+            'unknown' {
+                if ($PluginCmdsOk) {
+                    $PluginInstalled = $true
+                    Write-Host "Installed the Pathpoint plugin for Claude Code (pathpoint@outline-insurance)."
+                    Write-PluginPathNote
+                } elseif (-not $PinnedVersion) {
+                    Write-PluginFallbackNote
+                }
+            }
+            default {
+                # 'absent'
+                if ($MpState -ne 'other' -and -not $PinnedVersion) {
+                    Write-PluginFallbackNote
+                }
+            }
+        }
+    }
+
+    if ($PluginInstalled) {
+        # Move aside -- not delete, in case the user customized it -- the
+        # plain skill copy earlier installers left behind. Alongside the
+        # plugin it would load as a duplicate Pathpoint skill; as
+        # SKILL.md.bak it loads as nothing. Only when the plugin is
+        # CONFIRMED enabled: with the state unknown, a duplicate skill is
+        # benign but removing what might be the only active copy is not.
+        $LegacySkill = Join-Path $SkillDir 'SKILL.md'
+        if ($PluginState -eq 'enabled' -and (Test-Path -LiteralPath $LegacySkill)) {
+            # Never clobber an earlier backup -- it may hold user-customized
+            # content while today's SKILL.md is just a pristine installer copy.
+            $SkillBak = Join-Path $SkillDir 'SKILL.md.bak'
+            if (Test-Path -LiteralPath $SkillBak) {
+                $SkillBak = Join-Path $SkillDir "SKILL.md.bak.$([DateTimeOffset]::Now.ToUnixTimeSeconds())"
+            }
+            try {
+                Move-Item -LiteralPath $LegacySkill -Destination $SkillBak -ErrorAction Stop
+                Write-Host "Moved legacy skill copy aside to $SkillBak (superseded by the plugin)."
+            } catch {
+                Write-Warning "Couldn't move the legacy skill copy at $LegacySkill aside; move or delete it by hand so the skill isn't loaded twice."
+            }
+        }
+    } else {
+        # Plain-skill fallback: install SKILL.md from the release into the
+        # Claude Code skills dir.
+        try {
+            $skillTxt = (Invoke-WebRequest -Uri "$BaseUrl/SKILL.md" -UseBasicParsing -ErrorAction Stop).Content
+            New-Item -ItemType Directory -Path $SkillDir -Force | Out-Null
+            Set-Content -Path (Join-Path $SkillDir 'SKILL.md') -Value $skillTxt -Encoding UTF8
+            Write-Host "Installed Pathpoint skill to $SkillDir\"
+        } catch {
+            # SKILL.md not in release — skip.
+        }
     }
 
     # Configure Claude Desktop MCP server entry and stage the skill zip.

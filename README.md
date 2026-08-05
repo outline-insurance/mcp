@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.15** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+Current release: **v0.0.16** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 ## Install
 
@@ -22,7 +22,9 @@ The installer:
 
 - Downloads the latest pre-built `p` binary for your platform
 - Puts it in a per-user directory (`~/.local/bin` on macOS/Linux, `%LOCALAPPDATA%\Pathpoint` on Windows)
-- Installs the Pathpoint skill into Claude Code (`~/.claude/skills/Pathpoint/`)
+- Installs the Pathpoint plugin into Claude Code — the skill plus the `p mcp-serve` MCP
+  server — when the `claude` CLI is on your PATH (falls back to a plain skill copy at
+  `~/.claude/skills/Pathpoint/` when it isn't)
 - Adds the `p mcp-serve` entry to your Claude Desktop config
 
 Re-run to upgrade. Pin a specific version with `P_VERSION=x.y.z` (bash) or `$env:P_VERSION='x.y.z'` (PowerShell).
@@ -45,9 +47,18 @@ On macOS, if you see a Gatekeeper warning, clear the quarantine flag: `xattr -d 
 
 The skill is a guide Claude reads so it knows how to walk non-technical users through Pathpoint operations (quoting, submissions, risk management). The install script sets it up automatically for Claude Code. For Claude Desktop or Claude.ai Web you import the zip manually.
 
-### Claude Code (auto)
+### Claude Code (plugin, auto)
 
-Installed by the script at `~/.claude/skills/Pathpoint/SKILL.md`. Manual install:
+This repo doubles as a Claude Code plugin marketplace. The install script registers it and installs the versioned `pathpoint` plugin when the `claude` CLI is on your PATH. The plugin carries both the skill and the `p mcp-serve` MCP server (run as `p` from your PATH), so Claude Code needs no separate MCP setup. Manual install:
+
+```bash
+claude plugin marketplace add https://github.com/outline-insurance/mcp.git
+claude plugin install pathpoint@outline-insurance --scope user
+```
+
+Upgrade later with `claude plugin update pathpoint@outline-insurance` — the plugin version tracks the `p` release, so re-running the installer keeps both in step. (Pinned installs via `P_VERSION` skip the plugin, which always tracks the latest release, and use the pinned release's skill copy instead.)
+
+Without the `claude` CLI, the installer falls back to a plain skill copy at `~/.claude/skills/Pathpoint/SKILL.md`:
 
 ```bash
 mkdir -p ~/.claude/skills/Pathpoint

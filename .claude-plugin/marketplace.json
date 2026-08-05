@@ -1,0 +1,15 @@
+{
+  "name": "outline-insurance",
+  "description": "Pathpoint plugins for Claude Code: the pathpoint skill that drives the p CLI MCP server.",
+  "owner": {
+    "name": "Pathpoint",
+    "url": "https://github.com/outline-insurance"
+  },
+  "plugins": [
+    {
+      "name": "pathpoint",
+      "source": "./plugins/pathpoint",
+      "description": "Quote, submit, and manage E&S risks conversationally in Claude via the Pathpoint p CLI MCP server."
+    }
+  ]
+}

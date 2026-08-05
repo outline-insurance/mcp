@@ -7,6 +7,62 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.16] - 2026-08-04
+
+### Added
+
+- Claude Code plugin distribution. The public release repo now doubles as a Claude Code plugin
+  marketplace: `release.sh` assembles `.claude-plugin/marketplace.json` (marketplace
+  `outline-insurance`) and a `plugins/pathpoint/` plugin — `.claude-plugin/plugin.json` plus the
+  skill at `skills/pathpoint/SKILL.md` — into the public-repo mirror at release time. The plugin
+  also declares the `p mcp-serve` MCP server (run as `p` from PATH), so a plugin install gives
+  Claude Code the skill and the tools together — previously the installers only wired the MCP server
+  into Claude Desktop and Claude Code got the skill alone. The plugin's version is stamped from
+  `RELEASE_VERSION` via the existing `__P_VERSION__` substitution, so `claude plugin update` sees a
+  new version exactly when a release is cut and there is no second hand-maintained version. The
+  monorepo keeps its flat `skills/SKILL.md` as the single source of truth (`mcp/skill_md_test.go`
+  still reads `../skills/SKILL.md`); the plugin directory shape exists only in the mirror.
+- `release.sh --dry-run`: stages the public-repo mirror in `dist/public-mirror` with no goreleaser
+  build, no `gh` access, and nothing pushed, then validates the assembled
+  `marketplace.json`/`plugin.json` (JSON well-formedness via python3 when present; manifest schema,
+  plugin layout, and skill frontmatter via `claude plugin validate`). Real releases hard-require the
+  `claude` check and abort before anything ships; only `--dry-run` may fall back to the JSON-syntax
+  check alone.
+- `install.sh` / `install.ps1`: when a `claude` executable is on PATH, the installers register the
+  marketplace by explicit HTTPS URL (the `owner/repo` shorthand clones over SSH, which most users
+  haven't set up for GitHub) and install `pathpoint@outline-insurance` at user scope, falling back
+  to `marketplace update` / `plugin update` when already registered or installed. When the plugin is
+  installed and enabled (checked via `claude plugin list --json` — a disabled plugin doesn't count),
+  the plain skill copy earlier installers wrote to `~/.claude/skills/Pathpoint/` is moved aside to
+  `SKILL.md.bak` — moved, not deleted, in case it was customized — so the skill isn't loaded twice;
+  on any failure (no `claude`, older CLI, network) they fall back to that plain copy exactly as
+  before. Plugin installation is best-effort and never fails the binary install. Pinned installs
+  (`P_VERSION` set) skip the plugin — it tracks the latest release by design — and install the
+  pinned release's own skill copy; if the plugin is already installed it stays (an installer
+  shouldn't uninstall it behind the user's back) and the installer prints the exact uninstall
+  command needed to pin fully. Before touching the marketplace, the installers also verify that a
+  registered `outline-insurance` marketplace actually points at this repo — `marketplace update` and
+  `plugin install` address it by name alone, so a name-squatted marketplace from another source is
+  refused outright (with the remove command printed) and the plain skill is used instead.
+
+### Changed
+
+- The landing page and the generated public README document the plugin flow for Claude Code users.
+  The `pathpoint-skill.zip` import path stays documented for claude.ai and Claude Desktop, which
+  don't support plugins.
+- `release.sh` creates the GitHub release before pushing the public-repo mirror. The pushed mirror
+  advertises the new plugin version, so a failed release after the push would leave the marketplace
+  permanently pointing at binaries that don't exist; the reverse partial failure (release exists,
+  push failed) just pairs the new binary with the previous plugin until the push is retried with the
+  new `--sync-only` mode, which re-assembles and pushes the mirror for an existing release without
+  rebuilding. Every release records the monorepo commit it was cut from as a hidden comment in its
+  release notes, and `--sync-only` refuses to run unless HEAD matches it — combined with the
+  clean-tree check this pins every mirrored input (installers, plugin metadata, landing page) to the
+  release's revision, not just the skill; releases predating the stamp fall back to comparing
+  SKILL.md against the release asset. The clean-tree preflight also switched from `git diff` to
+  `git status --porcelain` so untracked files (the plugin templates are read straight from the
+  working tree) block a release too.
+
 ## [0.0.15] - 2026-08-04
 
 ### Added

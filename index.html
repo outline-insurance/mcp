@@ -248,7 +248,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.15 · latest release
+        <span class="dot"></span> v0.0.16 · latest release
       </a>
       <h1>Pathpoint MCP Server</h1>
       <p class="lede">Quote, submit, and manage risks <b>conversationally in Claude</b> — the Pathpoint <code>p</code> CLI, MCP server, and skill, installed in one line.</p>
@@ -397,7 +397,7 @@
     <div class="section-head">
       <span class="eyebrow">After install</span>
       <h2>Log in and connect Claude</h2>
-      <p>The installer drops the binary on your PATH, wires the MCP server into Claude Desktop, and installs the skill into Claude Code. Two steps remain.</p>
+      <p>The installer drops the binary on your PATH, wires the MCP server into Claude Desktop, and installs the Pathpoint plugin into Claude Code. Two steps remain.</p>
     </div>
 
     <div class="setup-grid">
@@ -433,6 +433,12 @@
     }
   }
 }</code></pre>
+        <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude Code plugin</h3>
+        <p style="color:var(--muted);font-size:.95rem">Installed automatically when the <code>claude</code> CLI is on your PATH — the skill plus the <code>p mcp-serve</code> MCP server, no separate MCP setup needed. The plugin version tracks each <code>p</code> release. To install or update by hand:</p>
+        <pre class="block"><button class="copy-pre" data-copy="b-plugin" aria-label="Copy plugin install commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="b-plugin"><span class="k">claude</span> plugin marketplace add https://github.com/outline-insurance/mcp.git
+<span class="k">claude</span> plugin install pathpoint@outline-insurance --scope user</code></pre>
+        <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude.ai &amp; Claude Desktop skill</h3>
+        <p style="color:var(--muted);font-size:.95rem">Plugins are Claude Code–only. On claude.ai and Claude Desktop, import the skill instead: grab <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">pathpoint-skill.zip</a> from the latest release (the installer also stages a copy in <code>Downloads</code> when it detects Claude Desktop), then upload it under <b>Settings → Capabilities → Skills → Create skill</b>.</p>
         <h3 style="font-size:1.05rem;margin:26px 0 12px">Troubleshooting</h3>
         <div class="tbl-scroll">
         <table class="tbl">
@@ -518,7 +524,7 @@
   // Graceful fallback if release.sh hasn't substituted the version token (e.g. local preview).
   (function(){
     var v = document.getElementById('ver');
-    if(v && v.textContent.indexOf('0.0.15') > -1){
+    if(v && v.textContent.indexOf('0.0.16') > -1){
       v.innerHTML = '<span class="dot"></span> Latest release';
     }
   })();
