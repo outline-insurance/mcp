@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pathpoint MCP Server — the p CLI for Claude</title>
-<meta name="description" content="Install the Pathpoint p CLI, Claude MCP server, and Pathpoint skill. Quote, submit, and manage risks conversationally in Claude — on macOS, Linux, and Windows." />
+<title>Pathpoint MCP Server — quote E&amp;S business in Claude</title>
+<meta name="description" content="Insurance agents: quote, submit, and bind E&amp;S business with Pathpoint by talking to Claude. One-line install for macOS, Linux, and Windows." />
 <meta name="theme-color" content="#1A1F62" />
 <meta property="og:title" content="Pathpoint MCP Server" />
-<meta property="og:description" content="Quote, submit, and manage risks conversationally in Claude. One-line install for macOS, Linux, and Windows." />
+<meta property="og:description" content="Insurance agents: quote, submit, and bind E&amp;S business with Pathpoint by talking to Claude. One-line install for macOS, Linux, and Windows." />
 <meta property="og:type" content="website" />
 <!-- Favicon: the Pathpoint logomark, inlined as a data URI so the page makes zero external requests. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 32'%3E%3Cpath fill='%2300B7D1' d='M12.9138 0H12.8607C19.9994 0 25.7864 5.74418 25.7864 12.8304C25.7864 19.8988 20.0281 25.6322 12.9138 25.6607V19.3243L12.9689 19.324C16.5325 19.2665 19.4032 16.3811 19.4032 12.8304C19.4032 9.26116 16.5029 6.36445 12.9138 6.33621V0Z'/%3E%3Cpath fill='%2300B7D1' d='M12.9254 6.33936V12.6753H6.35675V25.6641H12.9254V32.0001H0V6.33936H12.9254Z'/%3E%3C/svg%3E" />
@@ -237,8 +237,9 @@
       </svg>
       <div class="nav-links">
         <a href="#what">What it does</a>
-        <a href="#tools">Tools</a>
+        <a href="#tools">Capabilities</a>
         <a href="#setup">Setup</a>
+        <a href="guide.html">Guide</a>
         <a class="ghbtn" href="https://github.com/outline-insurance/mcp" target="_blank" rel="noopener">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           GitHub
@@ -248,10 +249,10 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.17 · latest release
+        <span class="dot"></span> v0.0.18 · latest release
       </a>
       <h1>Pathpoint MCP Server</h1>
-      <p class="lede">Quote, submit, and manage risks <b>conversationally in Claude</b> — the Pathpoint <code>p</code> CLI, MCP server, and skill, installed in one line.</p>
+      <p class="lede">From "I need a GL quote" to bind request — <b>in one conversation</b>. The Pathpoint MCP server for Claude, installed in one line.</p>
 
       <div class="installs">
         <div class="card-cmd">
@@ -294,6 +295,10 @@
           </div>
         </div>
       </div>
+      <div class="btns" style="margin-top:30px;flex-direction:column;align-items:center;gap:10px">
+        <p style="margin:0;color:rgba(255,255,255,.78);font-size:.98rem">See it before you install it — the guide walks a real risk from first ask to bind request, step by step.</p>
+        <a class="btn btn-ghost" href="guide.html">Read the agent guide &rarr;</a>
+      </div>
       <p class="hero-note">Re-run any time to upgrade. Pin a version with <code>P_VERSION=x.y.z</code>. From source? <code>cd tools/p &amp;&amp; go build -o p .</code></p>
     </div>
   </div>
@@ -305,32 +310,32 @@
   <div class="wrap does">
     <div>
       <span class="eyebrow">What it does</span>
-      <h2>Run Pathpoint in plain English</h2>
-      <p>Pathpoint is the full-service E&amp;S wholesaler that helps commercial brokers and agents navigate E&amp;S with confidence — and the <code>p</code> CLI brings it to your terminal. It talks to the Pathpoint GraphQL API; as an MCP server it hands Claude a full set of broker-lifecycle tools, and the bundled skill teaches Claude how to use them: what to ask, what limits apply per product, and how to confirm every change.</p>
+      <h2>Your E&amp;S back office, in plain English</h2>
+      <p>Pathpoint is the full-service E&amp;S wholesaler that helps commercial brokers and agents navigate E&amp;S with confidence — and the Pathpoint MCP server brings it into Claude. Describe the risk the way you'd describe it to a colleague; Claude fills the application, checks appetite, submits to markets, and walks the quotes back to you.</p>
       <div class="stack">
         <div class="row">
           <span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9.5l2.6 2.5L7 14.5"/><path d="M12.5 14.5H17"/></svg></span>
-          <div><b>p CLI</b><span>91 queries &amp; 158 mutations, auto-generated from the GraphQL schema.</span></div>
+          <div><b>Ask in plain English</b><span>the bundled skill teaches Claude E&amp;S: what to ask, what each product needs, when to check appetite.</span></div>
         </div>
         <div class="row">
           <span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 17v3.5"/></svg></span>
-          <div><b>MCP server</b><span><code>p mcp-serve</code> exposes 85 curated tools to Claude Desktop &amp; Claude Code (57 core, the rest in opt-in toolsets).</span></div>
+          <div><b>Claude does the paperwork</b><span>the application, class codes, market submission, quote comparison, subjectivities.</span></div>
         </div>
         <div class="row">
           <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
-          <div><b>Pathpoint skill</b><span>Conversational guardrails that help anyone get it right the first time, technical or not.</span></div>
+          <div><b>You stay in control</b><span>every submission and bind request is summarized and confirmed with you first.</span></div>
         </div>
       </div>
     </div>
 
     <div class="chat" aria-hidden="true">
       <div class="bar"><i></i><i></i><i></i></div>
-      <div class="bubble you">Add an At-Bay quote for $3,500 to this risk</div>
-      <div class="bubble ai"><span class="ok">✓ Quote added</span> — At-Bay, $3,500 premium. Want me to add an agency fee or mark it bound?</div>
-      <div class="bubble you">Change the premium to $4,200 and add a $500 agency fee</div>
-      <div class="bubble ai"><span class="ok">✓ Updated</span> — premium $4,200, agency fee $500. New total: $4,700.</div>
-      <div class="bubble you">Now update the named insured to Acme Industries LLC</div>
-      <div class="bubble ai"><span class="ok">✓ Submission updated</span> — named insured is now Acme Industries LLC.</div>
+      <div class="bubble you">I need a GL quote for a landscaping contractor in Austin — Hill Country Landscaping LLC</div>
+      <div class="bubble ai">On it. Two quick questions: annual revenue, and any tree work above 15 feet?</div>
+      <div class="bubble you">$850K, and no — nothing above 15 feet</div>
+      <div class="bubble ai"><span class="ok">✓ Submitted</span> — 2 instant quotes: Kinsale $4,180 · Ategrity $4,650. Want the side-by-side?</div>
+      <div class="bubble you">Go with Kinsale — request the bind</div>
+      <div class="bubble ai"><span class="ok">✓ Bind requested</span> — 3 subjectivities to clear; I'll walk you through them.</div>
     </div>
   </div>
 </section>
@@ -340,51 +345,51 @@
   <div class="wrap">
     <div class="section-head">
       <span class="eyebrow">Capabilities</span>
-      <h2>The full broker lifecycle</h2>
-      <p>85 MCP tools spanning risks, quotes, submissions, subjectivities, policies, and documents — plus authentication, all from one binary.</p>
+      <h2>Intake to bind request, conversationally</h2>
+      <p>Everything an agent does on a risk, available as a conversation — no forms, no portal tabs.</p>
     </div>
     <div class="grid">
       <div class="feat">
         <div class="fi"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></div>
-        <h3>Risks</h3>
-        <p>Create, search, and inspect risks; read the full activity feed; manage coverages.</p>
-        <div class="tags"><span>create</span><span>search</span><span>activities</span></div>
+        <h3>Start a submission</h3>
+        <p>Describe the risk or hand over an ACORD; Claude fills the application and finds the class code.</p>
+        <div class="tags"><span>plain English</span><span>ACORD upload</span></div>
       </div>
       <div class="feat">
         <div class="fi"><svg viewBox="0 0 24 24"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <h3>Quotes</h3>
-        <p>Add and update manual quotes, premiums, agency fees, taxes; bind, decline, or resubmit.</p>
-        <div class="tags"><span>add</span><span>update</span><span>bind</span></div>
+        <h3>Check appetite</h3>
+        <p>Know before you submit whether it quotes, refers, or declines — and what to change.</p>
+        <div class="tags"><span>appetite</span><span>pre-submit</span></div>
       </div>
       <div class="feat">
         <div class="fi"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></div>
-        <h3>Submissions</h3>
-        <p>Edit named insured, addresses, and submission fields; clone a submission with a new effective date.</p>
-        <div class="tags"><span>edit</span><span>clone</span></div>
+        <h3>Submit &amp; compare quotes</h3>
+        <p>One confirmation sends it to markets; instant quotes come back in the same conversation.</p>
+        <div class="tags"><span>submit</span><span>compare</span></div>
       </div>
       <div class="feat">
         <div class="fi"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-        <h3>Subjectivities</h3>
-        <p>List, add, satisfy, and waive subjectivities so quotes can move toward bind.</p>
-        <div class="tags"><span>add</span><span>satisfy</span><span>waive</span></div>
+        <h3>Clear subjectivities</h3>
+        <p>See what the carrier needs, answer in chat, attach files.</p>
+        <div class="tags"><span>answer</span><span>upload</span></div>
       </div>
       <div class="feat">
         <div class="fi"><svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M12 18v-6M9 15h6"/></svg></div>
-        <h3>Documents</h3>
-        <p>Generate and fetch ACORD forms and quote documents, correlated by submission.</p>
-        <div class="tags"><span>generate</span><span>fetch</span><span>ACORD</span></div>
+        <h3>Request the bind</h3>
+        <p>Readiness check, explicit confirmation, licensed-agent routing when your agency needs it.</p>
+        <div class="tags"><span>readiness</span><span>bind</span></div>
       </div>
       <div class="feat">
         <div class="fi"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z"/></svg></div>
-        <h3>Auth &amp; carriers</h3>
-        <p>Secure local-browser login across environments, with 38 carriers resolved by name.</p>
-        <div class="tags"><span>login</span><span>p doctor</span></div>
+        <h3>Stay on top of your book</h3>
+        <p>Morning round-ups, activity feeds, notes, renewals, drafts you forgot about.</p>
+        <div class="tags"><span>action items</span><span>renewals</span></div>
       </div>
     </div>
 
     <div class="stats">
-      <div><div class="n"><em>85</em></div><div class="l">MCP tools</div></div>
-      <div><div class="n"><em>249</em></div><div class="l">CLI operations</div></div>
+      <div><div class="n"><em>1</em></div><div class="l">conversation, intake to bind request</div></div>
+      <div><div class="n"><em>0</em></div><div class="l">passwords typed into chat</div></div>
       <div><div class="n"><em>3</em></div><div class="l">platforms · arm64 + amd64</div></div>
       <div><div class="n"><em>1</em></div><div class="l">line to install</div></div>
     </div>
@@ -397,7 +402,7 @@
     <div class="section-head">
       <span class="eyebrow">After install</span>
       <h2>Log in and connect Claude</h2>
-      <p>The installer drops the binary on your PATH, wires the MCP server into Claude Desktop, and installs the Pathpoint plugin into Claude Code. Two steps remain.</p>
+      <p>The installer drops the binary on your PATH, wires the MCP server into Claude Desktop, and installs the Pathpoint plugin into Claude Code. Two steps remain. Then read the <a href="guide.html">agent guide</a> — a full quote-to-bind walkthrough.</p>
     </div>
 
     <div class="setup-grid">
@@ -438,7 +443,7 @@
         <pre class="block"><button class="copy-pre" data-copy="b-plugin" aria-label="Copy plugin install commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="b-plugin"><span class="k">claude</span> plugin marketplace add https://github.com/outline-insurance/mcp.git
 <span class="k">claude</span> plugin install pathpoint@outline-insurance --scope user</code></pre>
         <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude.ai &amp; Claude Desktop skill</h3>
-        <p style="color:var(--muted);font-size:.95rem">Plugins are Claude Code–only. On claude.ai and Claude Desktop, import the skill instead: grab <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">pathpoint-skill.zip</a> from the latest release (the installer also stages a copy in <code>Downloads</code> when it detects Claude Desktop), then upload it under <b>Settings → Capabilities → Skills → Create skill</b>.</p>
+        <p style="color:var(--muted);font-size:.95rem">Plugins are Claude Code–only, and the skill adds guidance, not tools — the Pathpoint tools run locally, so risk work needs Claude Desktop (wired up by the installer) or Claude Code. To add the skill on claude.ai or Claude Desktop: grab <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">pathpoint-skill.zip</a> from the latest release (the installer also stages a copy in <code>Downloads</code> when it detects Claude Desktop), then upload it under <b>Settings → Capabilities → Skills → Create skill</b>.</p>
         <h3 style="font-size:1.05rem;margin:26px 0 12px">Troubleshooting</h3>
         <div class="tbl-scroll">
         <table class="tbl">
@@ -460,7 +465,7 @@
     <div class="cta">
       <span class="eyebrow" style="color:#bff2fb">Get started</span>
       <h2>One line. You're connected.</h2>
-      <p>Install the Pathpoint MCP server and bring quoting, submissions, and risk management into Claude.</p>
+      <p>Install the Pathpoint MCP server and quote your next E&amp;S risk by talking to Claude.</p>
       <div class="cta-cmd">
         <div class="card-cmd" style="background:rgba(7,12,38,.45)">
           <div class="cmd">
@@ -474,6 +479,7 @@
       <div class="btns">
         <a class="btn btn-primary" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">Download a release</a>
         <a class="btn btn-ghost" href="https://github.com/outline-insurance/mcp" target="_blank" rel="noopener">View on GitHub</a>
+        <a class="btn btn-ghost" href="guide.html">Read the agent guide</a>
       </div>
     </div>
   </div>
@@ -489,6 +495,7 @@
         <path fill-rule="evenodd" clip-rule="evenodd" d="M35.7285 21.6846V17.8065H37.8497C41.0904 17.8065 42.9759 16.2908 42.9759 13.5351C42.9759 10.7988 41.0904 9.28311 37.8497 9.28311H32.4093V21.6846H35.7285ZM37.6926 15.1295H35.7285V11.9601H37.6926C39.1852 11.9601 39.7549 12.5114 39.7549 13.5548C39.7549 14.5979 39.1852 15.1295 37.6926 15.1295ZM51.2247 21.8816C52.1283 21.8816 52.7567 21.6257 53.2085 21.3105V19.6176C52.9531 19.7161 52.7567 19.7553 52.5016 19.7553C52.1675 19.7553 51.9712 19.5587 51.9712 19.1061V16.1136C51.9712 13.6728 50.2625 12.6689 47.9448 12.6689C45.313 12.6689 43.8793 14.0074 43.6043 15.9367L46.5505 16.1334C46.6879 15.4839 47.0415 15.031 47.7486 15.031C48.5143 15.031 48.8485 15.4641 48.8485 16.1924V16.3303L46.3932 16.7437C44.4882 17.0783 43.2704 17.8065 43.2704 19.4997C43.2704 20.9956 44.39 21.8816 46.0987 21.8816C47.4933 21.8816 48.4949 21.35 49.0055 20.3261C49.3 21.3303 50.1445 21.8816 51.2247 21.8816ZM47.2183 19.8343C46.6879 19.8343 46.3343 19.5389 46.3343 19.0863C46.3343 18.5153 46.7861 18.2791 47.5521 18.1217L48.8485 17.8855V18.0232C48.8485 19.165 48.1216 19.8343 47.2183 19.8343ZM57.2152 21.9208C58.4133 21.9208 59.179 21.6257 59.847 21.1336V19.0663C59.3166 19.2833 58.8848 19.3617 58.4916 19.3617C57.8438 19.3617 57.4902 19.0663 57.4902 18.3184V15.1098H59.7684V12.9051H57.4902V10.4839H55.4867L55.1922 11.6255C54.9761 12.4327 54.701 12.9051 53.8174 13.0428L53.1693 13.1412V15.1098H54.3477V19.2435C54.3477 21.3105 55.742 21.9208 57.2152 21.9208ZM64.2464 21.6846V17.3737C64.2464 16.0547 64.6785 15.1885 65.7587 15.1885C66.7211 15.1885 67.055 15.8185 67.055 17.0193V21.6846H70.2366V16.1729C70.2366 14.342 69.4709 12.6689 67.0744 12.6689C65.7587 12.6689 64.7177 13.2594 64.2464 14.2238V9.28311H61.0648V21.6846H64.2464ZM75.0487 24.8343V20.1887C75.4805 21.2121 76.4627 21.9208 77.9358 21.9208C80.5085 21.9208 81.8246 19.8933 81.8246 17.295C81.8246 14.7162 80.5085 12.6689 77.9358 12.6689C76.4627 12.6689 75.4805 13.3776 75.0487 14.421V12.9051H71.8668V24.8343H75.0487ZM76.8163 19.4604C75.7361 19.4604 75.0487 18.6335 75.0487 17.354V17.2357C75.0487 15.9759 75.7361 15.1492 76.8163 15.1492C78.0538 15.1492 78.6233 16.0352 78.6233 17.295C78.6233 18.5745 78.0538 19.4604 76.8163 19.4604ZM87.4612 21.9208C90.3092 21.9208 92.2536 20.0312 92.2536 17.295C92.2536 14.5782 90.3092 12.6689 87.4612 12.6689C84.5938 12.6689 82.6691 14.5782 82.6691 17.295C82.6691 20.0312 84.5938 21.9208 87.4612 21.9208ZM87.4612 19.5192C86.3419 19.5192 85.8704 18.6137 85.8704 17.295C85.8704 15.9759 86.3419 15.0705 87.4612 15.0705C88.5611 15.0705 89.0523 15.9759 89.0523 17.295C89.0523 18.6137 88.5611 19.5192 87.4612 19.5192ZM93.4911 12.0784H96.7121V9.28311H93.4911V12.0784ZM93.5105 21.6846H96.6924V12.9051H93.5105V21.6846ZM101.602 21.6846V17.3737C101.602 16.0547 102.034 15.1885 103.115 15.1885C104.077 15.1885 104.411 15.8185 104.411 17.0193V21.6846H107.593V16.1729C107.593 14.342 106.827 12.6689 104.431 12.6689C103.115 12.6689 102.074 13.2594 101.602 14.2238V12.9051H98.4206V21.6846H101.602ZM112.405 21.9208C113.603 21.9208 114.369 21.6257 115.037 21.1336V19.0663C114.506 19.2833 114.074 19.3617 113.681 19.3617C113.033 19.3617 112.68 19.0663 112.68 18.3184V15.1098H114.958V12.9051H112.68V10.4839H110.676L110.382 11.6255C110.166 12.4327 109.891 12.9051 109.007 13.0428L108.359 13.1412V15.1098H109.537V19.2435C109.537 21.3105 110.932 21.9208 112.405 21.9208Z" fill="#1A1F62"/>
       </svg>
       <div class="foot-links">
+        <a href="guide.html">Agent guide</a>
         <a href="https://github.com/outline-insurance/mcp" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/outline-insurance/mcp/releases" target="_blank" rel="noopener">Releases</a>
         <a href="CHANGELOG.md">Changelog</a>
@@ -527,7 +534,7 @@
   // Graceful fallback if release.sh hasn't substituted the version token (e.g. local preview).
   (function(){
     var v = document.getElementById('ver');
-    if(v && v.textContent.indexOf('0.0.17') > -1){
+    if(v && v.textContent.indexOf('__P_VERSION') > -1){
       v.innerHTML = '<span class="dot"></span> Latest release';
     }
   })();

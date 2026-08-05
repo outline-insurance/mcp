@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-08-05
+
+### Changed
+
+- The public site (GitHub Pages) now speaks to insurance agents rather than internal users, and
+  gained a documentation page: `guide.html` carries getting-started setup, a conversation-first
+  quote-to-bind walkthrough as the primary example, everyday-task recipes, an agent-scoped tool
+  reference, and troubleshooting. The landing page's example conversation now shows the agent
+  journey (submit → instant quotes → bind request) instead of manual quote entry, and internal-ops
+  content was removed from the site. `release.sh` mirrors the new page with the same version
+  substitution as the landing page.
+
 ## [0.0.17] - 2026-08-05
 
 ### Added
