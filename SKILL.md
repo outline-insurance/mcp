@@ -16,10 +16,14 @@ user.
 
 Every operation follows the same shape:
 
-1. **Login** — call `get_login_status`. If not logged in, call the `login` MCP tool to get the exact
-   `p login --endpoint <env>` command for the user to run in their terminal. The terminal flow opens
-   a localhost browser form so the password never appears in chat — never accept a password from the
-   user in conversation. After they complete it, call `get_login_status` again to confirm.
+1. **Login** — call `get_login_status`. It verifies the saved session with the server, so its answer
+   is live truth: "NOT logged in" with a session file present means the session expired. If not
+   logged in, call the `login` MCP tool — it opens the browser sign-in form directly on the user's
+   machine (no terminal involved) and returns the form URL in case the window did not appear. Ask
+   the user to complete the form in the browser; the window expires after a few minutes, and only
+   one sign-in can be open at a time. The localhost form is how the password stays out of the chat —
+   never accept a password from the user in conversation. While the form is open, `get_login_status`
+   reports the sign-in as still in progress; once the user finishes, call it again to confirm.
 2. **Find the risk** — ask for a UUID or company name, then call `search_risk`. If the user just
    wants to browse recent activity, use `list_risks` instead. If multiple results, present a
    numbered list and let the user pick. Confirm with `get_risk` to show full details.
@@ -961,6 +965,16 @@ merely a hidden group. What genuinely is not here:
 
 Endorsement requests, policy cancellation, non-renewal, inspection compliance, loss history and
 wildfire orders ARE covered — in the `endorsements`, `policy`, `claims` and `hazard` toolsets.
+
+## Reporting problems
+
+When a tool misbehaves — wrong result, unexpected error, something the web app can do that these
+tools get wrong — offer to help the user report it: the intake is
+https://github.com/outline-insurance/mcp/issues, and the output of `p doctor` (run in a terminal)
+gives the maintainers version, session and install state in one paste. Two cautions: that issue
+tracker is PUBLIC, so never include policyholder names, premiums, or any submission data in a
+report; and a missing capability is usually a hidden toolset — check `list_toolsets` before
+reporting a gap.
 
 ## Display Formatting
 

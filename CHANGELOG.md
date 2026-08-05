@@ -7,6 +7,113 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.17] - 2026-08-05
+
+### Added
+
+- `--confirm-prod` gate for CLI mutations. Every generated `p mutation` command, and any `p raw`
+  document containing a mutation operation, now refuses to run against production without
+  `--confirm-prod`. The classification is fail-closed (`client.RequiresProdConfirmation`, shared
+  with the MCP guard so the two surfaces cannot drift): only endpoints recognisably NOT production —
+  loopback and the `*.pathpoint.dev` estate — are waved through, so an unfamiliar host, a proxy, an
+  IP literal, or a fully-qualified `api.app.pathpoint.com.` with the DNS root dot is asked about
+  rather than silently allowed. Previously the MCP guard keyed on positive prod detection, which
+  also meant any `pathpoint.com` hostname containing "demo" bypassed it — the same discipline the
+  MCP tools have had via `confirm_prod`. `--yes` only skips the interactive prompt and no longer
+  suffices on prod, so a non-interactive prod write names both flags. `p raw` mutations also gained
+  the y/N confirmation (`--yes` to skip) that generated mutations already had; previously
+  `p raw 'mutation {...}'` hit prod with no prompt of any kind. Mutation detection in `raw` scans
+  for a top-level `mutation` keyword with comments and string literals stripped, and treats anything
+  it cannot rule out as a mutation.
+- `p doctor`: one-shot read-only diagnostic — build version, update availability, whether the `p` on
+  PATH is the binary running, the saved session, and whether the server still accepts it. Exits
+  non-zero when something needs fixing. Built for "run `p doctor` and paste the output" remote
+  support.
+- `p schema list` / `p schema describe` now work outside the monorepo. The merged GraphQL schema is
+  embedded into the binary at codegen time (`gen/schema_embedded.go`) and is the only source these
+  commands read — they answer for the binary in hand, so reading whatever checkout happened to be
+  above the working directory would let an installed `p` describe operations it cannot run.
+  Previously every installed binary failed with "could not find GraphQL schema files", which was the
+  entire documented discovery path for external users.
+- Generated flag help now carries the GraphQL type, a required marker, and JSON shape, e.g.
+  `--claimIds  [UUID!]!, required (JSON array)` — previously flags rendered with no type and no
+  required indication, and the only way to learn them was a runtime error.
+- Request attribution: the `User-Agent` header carries the real build version (was hardcoded `1.0`)
+  and `X-Client` distinguishes `p-mcp` (MCP server) from `p-cli` (direct CLI use), so API logs can
+  answer "which release, driven by what" during an incident. Per-tool attribution (`X-Client-Tool`)
+  is deliberately NOT included: mcp-go's stdio transport runs a pool of five tool-call workers, so
+  process-global state would stamp the wrong tool name whenever an agent issues parallel calls, and
+  a header that is wrong under concurrency is worse than no header. It needs request-scoped context
+  (PAR-5470).
+
+### Changed
+
+- GraphQL errors now fail the process. A response whose body carries an `errors[]` array made the
+  CLI exit 0; a permission denial or validation failure was indistinguishable from success by exit
+  code, which is how a scripted `p mutation requestBind ... && next-step` runs the next step on a
+  failed bind. The envelope is still printed to stdout; the process then exits non-zero
+  (single-shot, `raw`, and bulk).
+- Bulk runs (`--bulk-file`) no longer abort mid-file on the first transport error and no longer
+  swallow per-item GraphQL errors. Output is strictly one NDJSON line per input item — a failed item
+  keeps its slot, carrying the server's own `{"data": …, "errors": […]}` envelope when the server
+  answered (partial data preserved), `{"error": …, "outcome": "failed"}` when the request never
+  reached the server, or `{"error": …, "outcome": "unknown", "retry_safe": false}` on a client-side
+  timeout — which may have completed server-side, and which an automated retry would otherwise turn
+  into a duplicate bind. Each failure is reported to stderr with its item number, the run continues,
+  and the exit code is non-zero if anything failed. `--fields` now applies to bulk runs (it was
+  silently ignored), and an explicitly empty string flag value (`--flag ""`) is now sent instead of
+  silently dropped.
+- `get_login_status` (MCP) and `p login` now verify the saved session against the server instead of
+  trusting the session file. A dead session used to report "Logged in" from the MCP tool — a false
+  green light the agent only discovered on its next real call — and `p login` short-circuited to the
+  same lie, so the documented recovery ("run `p login`") did nothing without a manual `p logout`
+  first. Now the status tool reports NOT logged in with the recovery step, and `p login`
+  re-authenticates a stale session in place, against the stale session's own environment unless
+  `--endpoint` says otherwise.
+- The MCP `login` tool now opens the browser sign-in itself instead of returning a `p login` command
+  for the user to run in a terminal. The browser flow moved out of `cmd` into a shared `login`
+  package (mcp cannot import cmd without a cycle, and the logIn mutation document must stay out of
+  package mcp for the AST-derived read/write classification to keep `login` read-only), and the tool
+  starts it in-process: the window stays open for 5 minutes, a wrong password re-renders the form
+  rather than ending the flow, and the result text carries the form URL for when the window is not
+  visible. Credentials still never pass through the tool, the transcript, or the MCP transport — the
+  form posts to a localhost listener that performs the GraphQL exchange directly. One sign-in at a
+  time per server: a second `login` call while one is pending reports the pending window's URL, age
+  and environment instead of opening another (and says so explicitly when the pending window targets
+  a different environment than the one requested); a call for an environment the saved session
+  already covers verifies with the server and answers "already logged in" with no browser; an
+  unreachable server gets a retry-shortly answer, not a browser window whose submit would fail the
+  same way. When the browser cannot be opened, the text leads with that failure and falls back to
+  the URL plus the terminal command. `get_login_status` is now in-flight-aware: not-logged-in
+  answers also report a pending browser sign-in (URL, age, total window), a sign-in that expired or
+  failed is surfaced exactly once with the reason and the advice to call `login` again, and its
+  stale "run `p login` in a terminal" recovery advice now points at the `login` tool. Because the
+  tool now performs the credential exchange in-process, the MCP `environment` argument is
+  constrained to Pathpoint environments (named `local`/`demo`/`prod` or a loopback / `pathpoint.dev`
+  / `pathpoint.com` host, https for non-loopback) — an untrusted, prompt-injectable argument can no
+  longer point the sign-in form at an arbitrary host and exfiltrate the password; arbitrary
+  endpoints remain available on the trusted CLI `--endpoint` flag. The GraphQL client also no longer
+  follows cross-host redirects, so an open redirect on an allowed host cannot forward credentials
+  off-box.
+- The shared 2-requests/second client-side rate limit now actually applies across an MCP session. It
+  was tracked per client instance while every tool call constructs a fresh client, making it a no-op
+  exactly where it mattered. Now process-wide; localhost endpoints are exempt.
+- `p mcp-serve` refuses `--timeout`: an explicit timeout collapses every per-operation budget to one
+  number, silently re-introducing the timed-out-bind-reports-failure problem the budget table exists
+  to prevent.
+- Errors print once. Cobra's default error handling printed every error twice with a usage dump in
+  between; now the message appears once, prefixed `Error:`.
+- `install.sh`: the "could not resolve latest version" explanation is now reachable (a curl failure
+  inside the command substitution aborted the script under `set -e` before the hint printed — and
+  that failure is the normal GitHub-API rate-limit case, now spelled out with the `P_VERSION`
+  workaround); the macOS quarantine attribute is cleared on install so Gatekeeper doesn't kill the
+  unsigned binary on first run; the closing message names `p update` and `p doctor`.
+- Landing page and public README: corrected stale counts (85 MCP tools, 91 queries / 158 mutations),
+  stopped steering external users to the internal `demo`/`local` environments (login examples now
+  use the prod default), documented `p update` and `p doctor`, updated the session-expired fix to
+  plain `p login`, and added a report-an-issue link with a no-policyholder-data-in-public-issues
+  caution.
+
 ## [0.0.16] - 2026-08-04
 
 ### Added

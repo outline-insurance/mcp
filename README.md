@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.16** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+Current release: **v0.0.17** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 ## Install
 
@@ -79,7 +79,7 @@ If you're on Claude.ai Web or installed before this step was added, you can grab
 ## Authenticating
 
 ```bash
-p login --endpoint demo    # or: local, prod, or a full URL
+p login                    # defaults to prod, your everyday Pathpoint account
 ```
 
 This opens a local browser form (served on `127.0.0.1` with a per-run nonce and loopback Host check). Your password is never typed into the terminal and never leaves your machine except to call the Pathpoint auth endpoint directly. The session is saved to `~/.config/p/session.json` (or `%USERPROFILE%\.config\p\session.json` on Windows) with mode `0600`.
@@ -87,9 +87,9 @@ This opens a local browser form (served on `127.0.0.1` with a per-run nonce and 
 For CI / non-interactive:
 
 ```bash
-p login --endpoint demo --email you@pathpoint.com --password <pw>
+p login --email you@example.com --password <pw>
 # or
-P_EMAIL=you@pathpoint.com P_PASSWORD=<pw> p login --endpoint demo
+P_EMAIL=you@example.com P_PASSWORD=<pw> p login
 ```
 
 ## Manual install
@@ -140,7 +140,18 @@ If the one-liner doesn't fit your environment:
 | Windows: installer says it configured the MCP server, but `pathpoint` isn't in Connectors | Fully quit Claude Desktop (tray icon too) and reopen — the config is read only at startup. If it's still missing, check the path the installer printed against the "Manual install" note above; on MSIX installs the config lives under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\`, not `%APPDATA%`. |
 | macOS "developer cannot be verified" | `xattr -d com.apple.quarantine "$(which p)"` once. |
 | `p login` doesn't open a browser | Paste the URL from the terminal into any browser on the same machine. |
-| Session expired | `p logout` then `p login --endpoint <env>` again. |
+| Session expired | `p login` — it verifies the saved session with the server and re-authenticates when it is stale. |
+| Anything else | `p doctor` prints a one-shot report (version, session, install health). Include its output when reporting a problem. |
+
+## Staying up to date
+
+`p update` installs the latest release in place (`p update --check` to just look). Re-running the
+install one-liner does the same thing.
+
+## Reporting problems
+
+Open an issue at https://github.com/outline-insurance/mcp/issues and paste the output of `p doctor`.
+Please don't include policyholder data in issues — this is a public repository.
 
 ## Source
 

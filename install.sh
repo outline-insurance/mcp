@@ -103,13 +103,22 @@ print("absent")
 
 # Resolve "latest" to a concrete tag via the GitHub API.
 # Uses awk rather than sed \s since BSD sed on macOS doesn't support \s.
+# The `|| VERSION=""` matters: under `set -euo pipefail` a curl failure in the
+# command substitution would abort the script before the explanation below
+# ever printed — and a failed curl here is the NORMAL failure mode, because
+# the unauthenticated GitHub API allows 60 requests/hour per IP (an office
+# behind one NAT can exhaust that fast).
 if [ "$VERSION" = "latest" ]; then
   VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | awk -F '"' '/"tag_name":/ { sub(/^v/, "", $4); print $4; exit }')"
+    | awk -F '"' '/"tag_name":/ { sub(/^v/, "", $4); print $4; exit }')" || VERSION=""
   if [ -z "$VERSION" ]; then
-    echo "Could not resolve latest version from $REPO." >&2
-    echo "Is the repo public? Does it have any releases?" >&2
-    echo "  gh release list --repo $REPO" >&2
+    echo "Could not resolve the latest version of p from $REPO." >&2
+    echo "This is usually a temporary network problem or the GitHub API rate limit" >&2
+    echo "(60 requests/hour per IP address for unauthenticated calls)." >&2
+    echo "" >&2
+    echo "Retry in a few minutes, or pin a version to skip the lookup entirely:" >&2
+    echo "  P_VERSION=<version> bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh)\"" >&2
+    echo "Available versions: https://github.com/$REPO/releases" >&2
     exit 1
   fi
 fi
@@ -123,7 +132,11 @@ trap 'rm -rf "$TMP"' EXIT
 echo "Downloading p $VERSION ($OS/$ARCH)..."
 curl -fsSL "$BASE_URL/$ASSET" -o "$TMP/$ASSET"
 
-# Verify checksum if checksums.txt is published.
+# Verify checksum if checksums.txt is published. CHECKSUM_VERIFIED records
+# whether the comparison actually happened (as opposed to being skipped for a
+# missing checksums.txt, a missing hasher, or an asset absent from the list) —
+# the macOS quarantine decision below depends on knowing the difference.
+CHECKSUM_VERIFIED=no
 if curl -fsSL "$BASE_URL/checksums.txt" -o "$TMP/checksums.txt" 2>/dev/null; then
   if command -v shasum >/dev/null 2>&1; then HASHER="shasum -a 256"
   elif command -v sha256sum >/dev/null 2>&1; then HASHER="sha256sum"
@@ -135,7 +148,14 @@ if curl -fsSL "$BASE_URL/checksums.txt" -o "$TMP/checksums.txt" 2>/dev/null; the
       echo "Checksum mismatch for $ASSET (expected $expected, got $actual)" >&2
       exit 1
     fi
+    if [ -n "$expected" ]; then
+      CHECKSUM_VERIFIED=yes
+    fi
   fi
+fi
+if [ "$CHECKSUM_VERIFIED" = "no" ]; then
+  echo "Note: could not verify the download's checksum (no published checksum, no local hasher," >&2
+  echo "  or this asset is absent from checksums.txt). Continuing." >&2
 fi
 
 tar -xzf "$TMP/$ASSET" -C "$TMP"
@@ -143,6 +163,38 @@ tar -xzf "$TMP/$ASSET" -C "$TMP"
 mkdir -p "$INSTALL_DIR"
 install -m 755 "$TMP/p" "$INSTALL_DIR/p"
 echo "Installed $INSTALL_DIR/p"
+
+# The binary is unsigned, so on macOS a quarantine attribute makes Gatekeeper
+# kill it on first run with "cannot be opened because the developer cannot be
+# verified". Clear it, but only when it is actually set and only out loud:
+# silently stripping an OS safeguard is not something an installer should do
+# without saying so.
+#
+# What justifies clearing it at all is the SHA-256 check above, which is a
+# stronger statement about this file than Gatekeeper can make about an
+# unsigned binary — and the fact that the user is already running this script
+# from curl, so the trust decision was made a step earlier. If the checksum
+# could not be verified, leave the attribute alone and let Gatekeeper have the
+# last word.
+if [ "$OS" = "darwin" ] && command -v xattr >/dev/null 2>&1; then
+  if xattr -p com.apple.quarantine "$INSTALL_DIR/p" >/dev/null 2>&1; then
+    if [ "${CHECKSUM_VERIFIED:-no}" = "yes" ]; then
+      if xattr -d com.apple.quarantine "$INSTALL_DIR/p" 2>/dev/null; then
+        echo "Cleared the macOS quarantine flag (the download's SHA-256 matched the published checksum)."
+      else
+        # Don't claim success we didn't achieve: if the removal failed, macOS
+        # will still block p, so tell the user how to clear it themselves.
+        echo "Note: could not clear the macOS quarantine flag automatically."
+        echo "  macOS will refuse to run p until you allow it: System Settings → Privacy & Security → Open Anyway,"
+        echo "  or clear it yourself with: xattr -d com.apple.quarantine \"$INSTALL_DIR/p\""
+      fi
+    else
+      echo "Note: the download could not be checksum-verified, so the macOS quarantine flag was left in place."
+      echo "  macOS will refuse to run p until you allow it: System Settings → Privacy & Security → Open Anyway,"
+      echo "  or clear it yourself with: xattr -d com.apple.quarantine \"$INSTALL_DIR/p\""
+    fi
+  fi
+fi
 
 # PATH hint — don't edit shell rc files; tell the user.
 case ":$PATH:" in
@@ -331,3 +383,4 @@ fi
 
 echo ""
 echo "Done. Run: p login"
+echo "Upgrade later with: p update   Diagnose problems with: p doctor"
