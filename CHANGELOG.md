@@ -7,6 +7,83 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.19] - 2026-08-05
+
+### Added
+
+- New `p install-desktop-config` command: discovers every Claude Desktop config location (macOS,
+  Linux, and Windows — both MSIX app-container and classic layouts, without ever mistaking
+  `%LOCALAPPDATA%\Claude`, the log directory, for a config dir), merges the `pathpoint` MCP server
+  entry natively, and supports `--dry-run`. Merges preserve every other key and MCP server, treat
+  empty files and `mcpServers: null` as fresh configs, and refuse — rather than clobber — files that
+  don't parse, because this file also holds the app's own preferences. Writes are atomic
+  (same-directory temp file + rename, preserving file mode) so a running Claude Desktop never sees a
+  torn config. The behavior contract is ported from `install_test.ps1`'s cases into Go table tests
+  in the new `desktop` package, which exercise the Windows branches on any development OS. This is
+  also the fix for a moved or reinstalled binary: re-run it and the config points at the right place
+  again.
+- The macOS/Linux installer now puts `p` on PATH itself instead of printing a hint most users never
+  acted on: when the install dir isn't on PATH it appends a marked, idempotent block to the shell's
+  rc file (zsh/bash export; fish via `fish_add_path` in `conf.d`), telling the user what was written
+  where. Re-runs — `p update` re-invokes the installer on every upgrade — detect the marker and
+  never duplicate the block. The install dir is written single-quoted so nothing in an exotic
+  `P_INSTALL_DIR` can execute at shell startup. Set `P_NO_MODIFY_PATH=1` to keep the installer out
+  of rc files and get the old hint. This matters more than usual because the Claude Code plugin
+  launches `p mcp-serve` by bare name from PATH.
+- `p doctor` now checks client surfaces: whether the `claude` CLI is on PATH, whether Claude Desktop
+  is present and its config wires the `pathpoint` MCP server, and whether that wiring points at a
+  binary that still exists (a dangling command is flagged as a failure with a
+  `p install-desktop-config` next step). When neither Claude Desktop nor Claude Code is found, it
+  explains that the Pathpoint tools run locally over stdio, so claude.ai in a browser cannot reach
+  them.
+
+### Fixed
+
+- The macOS/Linux installer no longer dies silently mid-install when a release's `checksums.txt`
+  lacks an entry for the platform asset: under `set -euo pipefail` the no-match grep aborted the
+  script between "Downloading..." and "Installed" with no output at all. All three checksum
+  degradation cases (checksums.txt missing, asset entry missing, no local SHA-256 tool) now print a
+  note naming the case and continue unverified — which also leaves the macOS quarantine flag in
+  place, as before. A real hash mismatch still aborts the install. The asset lookup is now an exact
+  string match rather than a regex, so dots in asset names can no longer match arbitrary characters.
+- The Windows installer no longer aborts on PowerShell 7 when a release has no `checksums.txt` — the
+  typed `WebException` catch never matched PS7's `HttpResponseException`. Every skipped-verification
+  path (checksums missing, asset not listed, entry malformed) now says so instead of skipping
+  silently.
+
+### Changed
+
+- `install.sh` and `install-local.sh` now delegate the Claude Desktop config write to
+  `p install-desktop-config` instead of editing JSON with jq. The jq path required a tool many
+  machines lack — stock macOS has no jq, so the least technical users got a JSON snippet and
+  instructions to hand-edit their config — and it reported success even when jq failed on malformed
+  user JSON (leaving a stray `.tmp` behind). The binary owns one merge implementation shared with
+  Windows and reports its own outcome. When the call fails — including older pinned binaries that
+  predate the subcommand — the installer says plainly that the config did not happen and prints the
+  manual snippet; a config failure still never fails the install. jq is no longer used anywhere.
+- Windows installer: `Unblock-File` (Mark-of-the-Web removal) now runs only when the download's
+  SHA-256 matched the published checksum, mirroring install.sh's quarantine-clearing policy;
+  unverified downloads keep the mark and the installer explains the first-run SmartScreen prompt and
+  how to clear it.
+- When Claude Desktop isn't detected, `install.sh` now names the exact config path it probed,
+  suggests launching Claude Desktop once (it creates its config directory on first run), and prints
+  the manual snippet — parity with the Windows installer, which previously offered all of that while
+  Unix users got a single "skipping" line. When neither Claude Desktop nor the `claude` CLI is
+  present, both installers' closing messages explain that the Pathpoint tools run locally over
+  stdio, so claude.ai in a browser cannot reach them; the Windows installer's "nothing else is
+  outstanding" claim — actively misleading for exactly that tester population — is gone. The final
+  "Done." line is outcome-aware instead of unconditional.
+- `install.sh` is restructured into functions behind a `BASH_SOURCE` main guard (with an explicit
+  empty-`BASH_SOURCE` arm so the documented `curl | bash` one-liner still runs), with a new
+  hand-rolled `install_test.sh` harness — sandbox HOMEs, shim `curl`/`p` binaries, bash
+  3.2-compatible — covering checksum handling, desktop wiring, PATH writes, and a full sandboxed
+  run. The Windows suite grew equivalent checksum and messaging cases (61 checks).
+- Docs: the public README and landing pages now cover installer PATH setup (and its opt-out), native
+  Claude Desktop wiring via `p install-desktop-config`, loud checksum degradation, and qualify the
+  SmartScreen troubleshooting row to unverified downloads; removed a from-source build instruction
+  that referenced the private monorepo. `release.sh` now refuses to cut a release if any user-facing
+  mirrored file (installers, README, landing pages) references internal paths or `install-local`.
+
 ## [0.0.18] - 2026-08-05
 
 ### Changed

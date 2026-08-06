@@ -249,7 +249,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.18 · latest release
+        <span class="dot"></span> v0.0.19 · latest release
       </a>
       <h1>Pathpoint MCP Server</h1>
       <p class="lede">From "I need a GL quote" to bind request — <b>in one conversation</b>. The Pathpoint MCP server for Claude, installed in one line.</p>
@@ -299,7 +299,7 @@
         <p style="margin:0;color:rgba(255,255,255,.78);font-size:.98rem">See it before you install it — the guide walks a real risk from first ask to bind request, step by step.</p>
         <a class="btn btn-ghost" href="guide.html">Read the agent guide &rarr;</a>
       </div>
-      <p class="hero-note">Re-run any time to upgrade. Pin a version with <code>P_VERSION=x.y.z</code>. From source? <code>cd tools/p &amp;&amp; go build -o p .</code></p>
+      <p class="hero-note">Re-run any time to upgrade. Pin a version with <code>P_VERSION=x.y.z</code>.</p>
     </div>
   </div>
   <svg class="wave" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true"><path fill="#ffffff" d="M0,40 C240,72 480,72 720,46 C960,20 1200,20 1440,44 L1440,70 L0,70 Z"></path></svg>
@@ -402,7 +402,7 @@
     <div class="section-head">
       <span class="eyebrow">After install</span>
       <h2>Log in and connect Claude</h2>
-      <p>The installer drops the binary on your PATH, wires the MCP server into Claude Desktop, and installs the Pathpoint plugin into Claude Code. Two steps remain. Then read the <a href="guide.html">agent guide</a> — a full quote-to-bind walkthrough.</p>
+      <p>The installer drops the binary on your PATH (adding a marked block to your shell rc when needed — opt out with <code>P_NO_MODIFY_PATH=1</code>), wires the MCP server into Claude Desktop, and installs the Pathpoint plugin into Claude Code. Two steps remain. Then read the <a href="guide.html">agent guide</a> — a full quote-to-bind walkthrough.</p>
     </div>
 
     <div class="setup-grid">
@@ -429,7 +429,7 @@
 
       <div>
         <h3 style="font-size:1.05rem;margin-bottom:6px">Claude Desktop config</h3>
-        <p style="color:var(--muted);font-size:.95rem">Added automatically by the installer. To wire it up by hand:</p>
+        <p style="color:var(--muted);font-size:.95rem">Added automatically by the installer. By hand, run <code>p install-desktop-config</code> — it finds the real config on every platform (including Windows MSIX installs) and merges the entry natively, no jq needed; <code>--dry-run</code> previews. Or edit the config yourself:</p>
         <pre class="block"><button class="copy-pre" data-copy="b-cfg" aria-label="Copy MCP config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="b-cfg">{
   <span class="s">"mcpServers"</span>: {
     <span class="s">"pathpoint"</span>: {
@@ -447,8 +447,10 @@
         <h3 style="font-size:1.05rem;margin:26px 0 12px">Troubleshooting</h3>
         <div class="tbl-scroll">
         <table class="tbl">
-          <tr><td>Windows SmartScreen</td><td>Click <b>More info → Run anyway</b>. One time per version (the binary is unsigned).</td></tr>
+          <tr><td>Windows SmartScreen</td><td>Click <b>More info → Run anyway</b>. Expected only when the download's checksum couldn't be verified (the binary is unsigned).</td></tr>
           <tr><td>macOS Gatekeeper</td><td><code>xattr -d com.apple.quarantine "$(which p)"</code></td></tr>
+          <tr><td><code>p: command not found</code></td><td>Open a new terminal, or <code>source</code> your shell rc — the installer appends a marked PATH block to it. If you set <code>P_NO_MODIFY_PATH=1</code>, add the install directory to PATH yourself.</td></tr>
+          <tr><td>Checksums not verified</td><td>The installer couldn't fetch <code>checksums.txt</code>, so the download's integrity wasn't confirmed — Gatekeeper / SmartScreen will prompt before first run. Re-run the installer to retry; a checksum mismatch always fails.</td></tr>
           <tr><td>Session expired</td><td><code>p login</code> — it re-checks the saved session with the server and re-authenticates when it is stale</td></tr>
           <tr><td>Anything else</td><td><code>p doctor</code> prints a one-shot report (version, session, install health) — include it when reporting a problem</td></tr>
           <tr><td>Upgrading</td><td><code>p update</code> installs the latest release in place (<code>p update --check</code> to just look)</td></tr>

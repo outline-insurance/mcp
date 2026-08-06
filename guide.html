@@ -286,7 +286,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.18 · latest release
+        <span class="dot"></span> v0.0.19 · latest release
       </a>
       <h1>Agent guide</h1>
       <p class="lede">Everything you need to quote, submit, and bind E&amp;S business with Pathpoint through Claude — from install to bind request.</p>
@@ -325,7 +325,7 @@
 curl -fsSL https://raw.githubusercontent.com/outline-insurance/mcp/main/install.sh | bash</code></pre>
         <pre class="block"><button class="copy-pre" data-copy="g-win" aria-label="Copy Windows install command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-win"><span class="c"># Windows PowerShell</span>
 irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | iex</code></pre>
-        <p>The installer puts <code>p</code> on your PATH, wires the MCP server into Claude Desktop, and installs the Claude Code plugin when the <code>claude</code> CLI is present.</p>
+        <p>The installer puts <code>p</code> on your PATH (on macOS and Linux by adding a marked block to your shell rc when needed — opt out with <code>P_NO_MODIFY_PATH=1</code>; on Windows by setting your user PATH automatically, no rc file involved), wires the MCP server into Claude Desktop via <code>p install-desktop-config</code> (a native merge — no jq needed), and installs the Claude Code plugin when the <code>claude</code> CLI is present.</p>
 
         <h3>Sign in</h3>
         <p><code>p login</code> opens a sign-in form in your browser on your own machine (<code>127.0.0.1</code>) — your password never appears in the terminal or the chat, and goes only to Pathpoint. Sessions are verified with the server; when one expires, run <code>p login</code> again.</p>
@@ -336,7 +336,7 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
         <h3>Connect Claude</h3>
         <p>Three ways to bring Pathpoint into a conversation with Claude, depending on where you chat.</p>
         <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude Desktop</h3>
-        <p style="color:var(--muted);font-size:.95rem">Wired up automatically by the installer. To wire it up by hand:</p>
+        <p style="color:var(--muted);font-size:.95rem">Wired up automatically by the installer. By hand, run <code>p install-desktop-config</code> — it finds the real config on every platform (including Windows MSIX installs) and merges the entry natively, no jq needed; <code>--dry-run</code> previews. Or edit the config yourself:</p>
         <pre class="block"><button class="copy-pre" data-copy="g-cfg" aria-label="Copy MCP config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-cfg">{
   <span class="s">"mcpServers"</span>: {
     <span class="s">"pathpoint"</span>: {
@@ -622,8 +622,10 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
 
         <div class="tbl-scroll">
         <table class="tbl">
-          <tr><td>Windows SmartScreen</td><td>Click <b>More info → Run anyway</b>. One time per version (the binary is unsigned).</td></tr>
+          <tr><td>Windows SmartScreen</td><td>Click <b>More info → Run anyway</b>. Expected only when the download's checksum couldn't be verified (the binary is unsigned).</td></tr>
           <tr><td>macOS Gatekeeper</td><td><code>xattr -d com.apple.quarantine "$(which p)"</code></td></tr>
+          <tr><td><code>p: command not found</code></td><td>Open a new terminal, or <code>source</code> your shell rc — the installer appends a marked PATH block to it. If you set <code>P_NO_MODIFY_PATH=1</code>, add the install directory to PATH yourself.</td></tr>
+          <tr><td>Checksums not verified</td><td>The installer couldn't fetch <code>checksums.txt</code>, so the download's integrity wasn't confirmed — Gatekeeper / SmartScreen will prompt before first run. Re-run the installer to retry; a checksum mismatch always fails.</td></tr>
           <tr><td>Session expired</td><td><code>p login</code> — it re-checks the saved session with the server and re-authenticates when it is stale</td></tr>
           <tr><td>Anything else</td><td><code>p doctor</code> prints a one-shot report (version, session, install health) — include it when reporting a problem</td></tr>
           <tr><td>Upgrading</td><td><code>p update</code> installs the latest release in place (<code>p update --check</code> to just look)</td></tr>

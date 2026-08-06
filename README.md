@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.18** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+Current release: **v0.0.19** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 ## Install
 
@@ -20,16 +20,24 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
 
 The installer:
 
-- Downloads the latest pre-built `p` binary for your platform
+- Downloads the latest pre-built `p` binary for your platform and verifies its checksum
+  (when `checksums.txt` can't be fetched it says so loudly and continues; a checksum
+  mismatch always fails)
 - Puts it in a per-user directory (`~/.local/bin` on macOS/Linux, `%LOCALAPPDATA%\Pathpoint` on Windows)
+- Adds that directory to your PATH via a marked, idempotent block in your shell rc
+  (`~/.zshrc`, `~/.bashrc`, or `~/.config/fish/conf.d/pathpoint.fish`) — skipped when
+  it's already on PATH; opt out with `P_NO_MODIFY_PATH=1`
 - Installs the Pathpoint plugin into Claude Code — the skill plus the `p mcp-serve` MCP
   server — when the `claude` CLI is on your PATH (falls back to a plain skill copy at
   `~/.claude/skills/Pathpoint/` when it isn't)
-- Adds the `p mcp-serve` entry to your Claude Desktop config
+- Adds the `p mcp-serve` entry to your Claude Desktop config with `p install-desktop-config`
+  — a native merge; no external tools needed
 
 Re-run to upgrade. Pin a specific version with `P_VERSION=x.y.z` (bash) or `$env:P_VERSION='x.y.z'` (PowerShell).
 
-On Windows, SmartScreen will warn you once per version (the binary is unsigned) — click "More info → Run anyway".
+On Windows, the installer unblocks verified downloads, so SmartScreen stays quiet when the
+checksum was verified. On an unverified download it will warn once per version (the binary is
+unsigned) — click "More info → Run anyway".
 On macOS, if you see a Gatekeeper warning, clear the quarantine flag: `xattr -d com.apple.quarantine "$(which p)"`.
 
 ## What's in each release
@@ -70,6 +78,8 @@ curl -fsSL https://raw.githubusercontent.com/outline-insurance/mcp/main/SKILL.md
 
 Claude Desktop skills live on Anthropic's servers rather than a local path, so the final step is manual. The installer already helps: it pre-downloads `pathpoint-skill.zip` to your `Downloads` folder when it detects Claude Desktop.
 
+The zip adds guidance, not tools — the Pathpoint tools run locally over stdio, so claude.ai on its own can't reach them; actual risk work needs Claude Desktop or Claude Code.
+
 1. Open Claude Desktop.
 2. **Settings → Capabilities → Skills → Create skill** → upload `~/Downloads/pathpoint-skill.zip` (or `%USERPROFILE%\Downloads\pathpoint-skill.zip` on Windows).
 3. Restart Claude Desktop, or start a fresh chat on Claude.ai Web.
@@ -98,7 +108,10 @@ If the one-liner doesn't fit your environment:
 
 1. Download the right archive from the [latest release](https://github.com/outline-insurance/mcp/releases/latest).
 2. Unpack it and put `p` somewhere on your PATH.
-3. Add the MCP entry to your Claude Desktop config:
+3. Wire up Claude Desktop: run `p install-desktop-config` — it finds the config on every
+   platform (macOS, Linux, Windows including MSIX installs), merges the `pathpoint` entry
+   natively, and takes `--dry-run` to preview. On releases that predate the command, add
+   the entry by hand:
    ```json
    {
      "mcpServers": {
@@ -135,10 +148,12 @@ If the one-liner doesn't fit your environment:
 
 | Symptom | Fix |
 |---------|-----|
-| Windows SmartScreen warning | Click "More info → Run anyway". One-time per version. |
+| Windows SmartScreen warning | Click "More info → Run anyway". Expected only when the download's checksum couldn't be verified (the binary is unsigned). |
 | Windows: "Claude Desktop not detected" | Launch Claude Desktop once, then re-run the installer. It creates its config directory on first run. |
 | Windows: installer says it configured the MCP server, but `pathpoint` isn't in Connectors | Fully quit Claude Desktop (tray icon too) and reopen — the config is read only at startup. If it's still missing, check the path the installer printed against the "Manual install" note above; on MSIX installs the config lives under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\`, not `%APPDATA%`. |
 | macOS "developer cannot be verified" | `xattr -d com.apple.quarantine "$(which p)"` once. |
+| `p: command not found` right after install | Open a new terminal, or `source` your shell rc — the installer appends a marked PATH block to it. If you set `P_NO_MODIFY_PATH=1`, add the install directory to PATH yourself. |
+| Installer said checksums couldn't be verified | `checksums.txt` (or your archive's entry in it) couldn't be fetched, so the download's integrity wasn't confirmed — Gatekeeper/SmartScreen will prompt before first run. Re-run the installer to retry; a checksum mismatch always fails. |
 | `p login` doesn't open a browser | Paste the URL from the terminal into any browser on the same machine. |
 | Session expired | `p login` — it verifies the saved session with the server and re-authenticates when it is stale. |
 | Anything else | `p doctor` prints a one-shot report (version, session, install health). Include its output when reporting a problem. |

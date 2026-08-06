@@ -250,6 +250,103 @@ function Get-PathpointMarketplaceState {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Download verification and the Unblock-File trust decision
+#
+# The binary is unsigned, so Windows stamps the download with a Zone.Identifier
+# stream (the Mark-of-the-Web) and SmartScreen interrogates p.exe on first run.
+# Unblock-File strips that mark -- but silently stripping an OS safeguard is
+# not something an installer should do without saying so, and doing it for a
+# download we could not verify would be vouching for bytes we know nothing
+# about.
+#
+# What justifies clearing the mark at all is the SHA-256 check against the
+# release's published checksums.txt -- a stronger statement about this exact
+# file than SmartScreen can make about an unsigned binary -- plus the fact
+# that the user is already running this script via `irm | iex`, so the trust
+# decision was made a step earlier. If the checksum could not be verified,
+# leave the mark alone and let SmartScreen have the last word. (install.sh
+# makes the same call for the macOS quarantine attribute.)
+# ---------------------------------------------------------------------------
+
+# Verify the downloaded zip against the release's published checksums.txt.
+# Returns $true only when the SHA-256 matched; $false when verification was
+# skipped (each skipped path says so out loud); throws on a real mismatch --
+# corrupt or tampered bytes must fail the install, not degrade it.
+function Test-PathpointChecksum {
+    param([string]$BaseUrl, [string]$TmpDir, [string]$Asset, [string]$ZipPath)
+
+    $checksumsPath = Join-Path $TmpDir 'checksums.txt'
+    try {
+        Invoke-WebRequest -Uri "$BaseUrl/checksums.txt" -OutFile $checksumsPath -UseBasicParsing -ErrorAction Stop
+    } catch {
+        # Deliberately untyped. Windows PowerShell 5.1 throws WebException for
+        # a missing checksums.txt while PowerShell 7 throws its own
+        # HttpResponseException; a catch typed to either turns "no checksums
+        # published" into a fatal error on the other runtime (this script runs
+        # with $ErrorActionPreference = 'Stop').
+        Write-Warning "Could not download checksums.txt for this release, so the download was NOT verified."
+        Write-Warning "Continuing anyway; Windows SmartScreen or Defender may warn about the unverified binary."
+        return $false
+    }
+
+    # Select the line whose second whitespace-separated field IS the asset
+    # (parity with install.sh's awk '$2 == asset'). A regex anchored only at
+    # the end would also accept any entry whose filename merely ends with
+    # $Asset (e.g. "xp_...zip") and then verify against the wrong hash.
+    $line = Get-Content $checksumsPath | Where-Object {
+        $fields = @(($_ -replace '^\s+', '') -split '\s+')
+        $fields.Count -ge 2 -and $fields[1] -eq $Asset
+    } | Select-Object -First 1
+    if (-not $line) {
+        Write-Warning "checksums.txt for this release does not list $Asset, so the download was NOT verified."
+        Write-Warning "Continuing anyway; Windows SmartScreen or Defender may warn about the unverified binary."
+        return $false
+    }
+
+    $expected = ($line -split '\s+')[0].ToLower()
+    # A checksums.txt entry that isn't 64 hex chars is corrupt (or tampered with);
+    # treat it like a missing entry rather than echoing arbitrary bytes from the
+    # download host into the console via the mismatch error below.
+    if ($expected -notmatch '^[0-9a-f]{64}$') {
+        Write-Warning "checksums.txt entry for $Asset is malformed, so the download was NOT verified."
+        Write-Warning "Continuing anyway; Windows SmartScreen or Defender may warn about the unverified binary."
+        return $false
+    }
+    $actual = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLower()
+    if ($expected -ne $actual) {
+        throw "Checksum mismatch for ${Asset}: expected $expected, got $actual"
+    }
+    return $true
+}
+
+# The Unblock-File half of the trust decision above: 'unblock' only when the
+# checksum verified. When it didn't, say what keeping the mark means for the
+# user (a first-run SmartScreen prompt) and how to proceed, rather than
+# leaving them to discover it.
+function Get-UnblockDecision {
+    param([bool]$ChecksumVerified, [string]$ExePath)
+    if ($ChecksumVerified) { return 'unblock' }
+    Write-Warning "The download could not be checksum-verified, so the Mark-of-the-Web was left on $ExePath."
+    Write-Warning "Windows SmartScreen will likely prompt the first time p runs: click 'More info' then 'Run anyway',"
+    Write-Warning "or clear the mark yourself once you trust the binary: Unblock-File -Path `"$ExePath`""
+    return 'keep'
+}
+
+# What to tell a user with NEITHER Claude Desktop NOR the claude CLI: p.exe
+# installed fine, but the Pathpoint tools run locally over stdio
+# (`p mcp-serve`), so claude.ai in a browser has no way to reach them. Without
+# one of the two local clients the tools have nowhere to run -- telling that
+# user the install left nothing outstanding would be untrue.
+function Get-NoClientExplanation {
+    return @(
+        "Heads up: the Pathpoint tools run locally over stdio (p mcp-serve), so claude.ai"
+        "in a browser cannot reach them, and no local Claude client was found on this"
+        "machine. Install Claude Desktop or Claude Code to use the tools, then re-run"
+        "this installer to wire them up."
+    ) -join [Environment]::NewLine
+}
+
 # Resolve "latest" via the GitHub API.
 if ($Version -eq 'latest') {
     try {
@@ -272,21 +369,11 @@ try {
     Write-Host "Downloading p $Version (windows/$Arch)..."
     Invoke-WebRequest -Uri "$BaseUrl/$Asset" -OutFile $ZipPath -UseBasicParsing
 
-    # Verify checksum if checksums.txt is published.
-    try {
-        $checksumsPath = Join-Path $Tmp 'checksums.txt'
-        Invoke-WebRequest -Uri "$BaseUrl/checksums.txt" -OutFile $checksumsPath -UseBasicParsing -ErrorAction Stop
-        $line     = Get-Content $checksumsPath | Where-Object { $_ -match [regex]::Escape($Asset) + '$' } | Select-Object -First 1
-        if ($line) {
-            $expected = ($line -split '\s+')[0].ToLower()
-            $actual   = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLower()
-            if ($expected -ne $actual) {
-                throw "Checksum mismatch for ${Asset}: expected $expected, got $actual"
-            }
-        }
-    } catch [System.Net.WebException] {
-        # checksums.txt not published — skip silently.
-    }
+    # Verify against the release's published checksums.txt. $true only on an
+    # actual SHA-256 match; every skipped path announces itself, and a
+    # mismatch throws and fails the install.
+    $ChecksumVerified = $false
+    $ChecksumVerified = Test-PathpointChecksum -BaseUrl $BaseUrl -TmpDir $Tmp -Asset $Asset -ZipPath $ZipPath
 
     # Install binary.
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
@@ -312,7 +399,20 @@ try {
     }
 
     Expand-Archive -Path $ZipPath -DestinationPath $InstallDir -Force
-    Unblock-File -Path $ExePath
+
+    # See "Download verification and the Unblock-File trust decision" above:
+    # only strip the Mark-of-the-Web from a download we actually verified.
+    if ((Get-UnblockDecision -ChecksumVerified $ChecksumVerified -ExePath $ExePath) -eq 'unblock') {
+        try {
+            Unblock-File -Path $ExePath -ErrorAction Stop
+            Write-Host "Cleared the Mark-of-the-Web from p.exe (the download's SHA-256 matched the published checksum)."
+        } catch {
+            # Don't claim success we didn't achieve: with the mark still set,
+            # SmartScreen will still prompt, so tell the user what to expect.
+            Write-Warning "Could not clear the Mark-of-the-Web from ${ExePath}: $_"
+            Write-Warning "Windows SmartScreen may prompt the first time p runs: click 'More info' then 'Run anyway'."
+        }
+    }
     Write-Host "Installed $ExePath"
 
     # Add to user PATH if missing. Takes effect in new terminals only.
@@ -331,7 +431,8 @@ try {
     # commands fail (e.g. an older CLI). All of this is best-effort -- it
     # must never fail the binary install.
     $PluginInstalled = $false
-    if (Get-Command claude -ErrorAction SilentlyContinue) {
+    $ClaudeCliFound  = [bool](Get-Command claude -ErrorAction SilentlyContinue)
+    if ($ClaudeCliFound) {
         # Explicit HTTPS git URL: the bare <owner>/<repo> shorthand clones
         # over SSH by default, which most users haven't set up for GitHub.
         $MarketplaceUrl = "https://github.com/$Repo.git"
@@ -553,7 +654,14 @@ try {
     # "Done" is reserved for the case where every target was written.
     if ($ClaudeDirs.Count -eq 0) {
         Write-Host "Done installing p. Claude Desktop wasn't found, so its MCP server and skill"
-        Write-Host "were not set up (see above); nothing else is outstanding."
+        Write-Host "were not set up (see above)."
+        if (-not $ClaudeCliFound) {
+            # No Claude Desktop AND no claude CLI: the binary has nowhere to
+            # run its tools (p mcp-serve is stdio-only), and claude.ai in a
+            # browser cannot reach a local process. Say so instead of
+            # pretending the install is fully wired up.
+            Write-Host (Get-NoClientExplanation)
+        }
         Write-Host "Open a new terminal and run: p login"
     } elseif ($failed.Count -eq 0) {
         Write-Host "Done. Open a new terminal and run: p login"
@@ -564,7 +672,11 @@ try {
         Write-Host "Done installing p, but the Claude Desktop MCP server was NOT configured (see above)."
         Write-Host "Open a new terminal and run: p login"
     }
-    Write-Host "(On first run, Windows SmartScreen may prompt once -- click 'More info' then 'Run anyway'.)"
+    # Only relevant while the Mark-of-the-Web is still on p.exe -- when the
+    # checksum verified, it was cleared (out loud) right after extraction.
+    if (-not $ChecksumVerified) {
+        Write-Host "(On first run, Windows SmartScreen may prompt once -- click 'More info' then 'Run anyway'.)"
+    }
 }
 finally {
     Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue
