@@ -7,6 +7,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.20] - 2026-08-06
+
+### Added
+
+- MCP tool-call context now reaches the wire. The GraphQL client gained `WithContext` /
+  `ExecuteContext`, and every per-operation timeout is now derived from the caller's context instead
+  of a fresh `context.Background()` — so mcp-go's `notifications/cancelled`, which is what Claude
+  Desktop sends when the user hits stop, now actually aborts the in-flight GraphQL request, the
+  pre-request rate-limit wait, and presigned-S3 file transfers. Previously the stop was cosmetic:
+  the user was told the call had been cancelled while the request ran on to completion or timeout
+  with nothing able to abandon it.
+- Per-request tool attribution: the MCP server now stamps `X-Client-Tool: <tool_name>` on every
+  request, with the tool name carried in the request context by a `WithToolHandlerMiddleware`. This
+  is the safe re-do of the attribution 0.0.17 deliberately left out: process-global state would
+  cross-stamp tool names under mcp-go's five-worker stdio pool, and context scoping is exactly the
+  request-scoped design that entry said it needed (PAR-5470, folded into ENG-895). The API server
+  does not read this header yet — it reads only `x-client` — so this is client-side stamping today,
+  not end-to-end observability; the server-side wiring is tracked on ENG-895.
+
+### Changed
+
+- A cancelled request now surfaces as the existing UNKNOWN-outcome guidance instead of a bare
+  "context canceled": `client.TimeoutError` gained a `Canceled` flag, and the message reads
+  "cancelled after Xs … THE OPERATION MAY HAVE COMPLETED SERVER-SIDE", with bind-class operations
+  keeping their do-not-retry / `check_bind_readiness` guidance. The "raise `--timeout`" trailer is
+  dropped for cancellations, where it is advice about the wrong knob — nothing timed out. Rationale:
+  a cancelled `bindQuoteIssuePolicy` is exactly the "outcome UNKNOWN, not failed" case; a bare
+  "cancelled" reads as "nothing happened" and invites the blind retry that turns one bind into two.
+
 ## [0.0.19] - 2026-08-05
 
 ### Added
@@ -130,10 +159,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Request attribution: the `User-Agent` header carries the real build version (was hardcoded `1.0`)
   and `X-Client` distinguishes `p-mcp` (MCP server) from `p-cli` (direct CLI use), so API logs can
   answer "which release, driven by what" during an incident. Per-tool attribution (`X-Client-Tool`)
-  is deliberately NOT included: mcp-go's stdio transport runs a pool of five tool-call workers, so
-  process-global state would stamp the wrong tool name whenever an agent issues parallel calls, and
-  a header that is wrong under concurrency is worse than no header. It needs request-scoped context
-  (PAR-5470).
+  was deliberately NOT included here: mcp-go's stdio transport runs a pool of five tool-call
+  workers, so process-global state would stamp the wrong tool name whenever an agent issues parallel
+  calls, and a header that is wrong under concurrency is worse than no header. It needed
+  request-scoped context — shipped in 0.0.20 (PAR-5470, folded into ENG-895).
 
 ### Changed
 
