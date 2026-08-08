@@ -7,6 +7,47 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.23] - 2026-08-07
+
+### Added
+
+- A once-a-day update nudge. When a newer release is known, most commands print a single line to
+  stderr at startup — "p 0.0.24 is available (running 0.0.23) — run `p update` to install" — read
+  from a local cache at `~/.config/p/update-check.json`, never from the network: when the cache is
+  more than 24 hours old, a fire-and-forget background refresh updates it for a later run, so no
+  invocation gains latency or a network dependency, and offline or air-gapped machines simply stay
+  silent. `update`, `doctor`, `version`, `completion`, and `mcp-serve` are excluded — the first
+  three already answer the version question themselves, completion output is consumed by shells, and
+  mcp-serve gets the MCP-native note below instead. Set `P_NO_UPDATE_CHECK` to any non-empty value
+  to turn it off; dev/local builds never nudge (comparison fails closed — see Fixed). Motivation:
+  `p update` only helps users who know a release happened; external beta users install once, drift
+  versions behind, and then hit bugs that were fixed weeks ago.
+- The MCP server delivers the same nudge in agent-readable form: when the cache knows a newer
+  version, the first successful tool result of a session carries a one-time trailing note, worded so
+  the agent relays it — tell the user to run `p update`. Agent-driven users never see the CLI's
+  stderr (`p mcp-serve`'s stderr goes to the host app's log file, not the conversation), so without
+  this the people most likely to be running an old binary are exactly the ones who never hear about
+  the fix. Same `P_NO_UPDATE_CHECK` opt-out.
+
+### Changed
+
+- `p doctor` and `p update --check` now resolve the latest release from the `Location` header of the
+  `https://github.com/outline-insurance/mcp/releases/latest` redirect instead of the GitHub REST
+  API. Unauthenticated REST calls are rate-limited to 60/hour per IP — an office NAT shares that
+  budget across everyone behind it, and install.sh already documents the resulting failure as the
+  normal one — while the redirect endpoint carries no such budget.
+
+### Fixed
+
+- Dev/local builds no longer report a false "update available" from `p doctor` and
+  `p update --check`. The old comparison was string equality, so any non-release version string
+  ("dev", a goreleaser snapshot) compared unequal to the published tag and read as out of date —
+  telling every from-source build to install 0.0.x over itself, and training exactly the wrong users
+  to ignore the nudge. Both commands now order versions numerically (MAJOR.MINOR.PATCH, so 0.0.10 >
+  0.0.9) and fail closed: a non-release build prints an honest "comparison skipped (running dev
+  build)" line instead of a fabricated verdict, and a local build ahead of the published release
+  reads as up to date, not update-worthy.
+
 ## [0.0.22] - 2026-08-07
 
 ### Added
