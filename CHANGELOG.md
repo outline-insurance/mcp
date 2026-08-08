@@ -7,6 +7,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.24] - 2026-08-08
+
+Closes out the ENG-914 contract queries. Nothing here is a new tool, deliberately: the core
+`tools/list` budget is effectively full, so each answer rides an existing tool's output or SKILL.md
+instead of spending a slot. Two of the ticket's five queries were closed without shipping anything —
+one superseded, one whose source document is dead — with the reasoning recorded on ENG-914.
+
+### Added
+
+- `get_quote` now lists carrier coverage adjustments ("modifications") on the quotes that carry them
+  — the package segments, monoline property/wind, and Churches-GL — naming the buildings each
+  adjustment affects, and stating explicitly when none were recorded so silence cannot be misread as
+  unamended coverage. Other coverages never carry modifications, so the tool does not fetch them
+  there. Motivation: a modification is the carrier amending what the quote actually covers, per
+  building, and it was visible only in the app's quote view — an agent relaying a quote
+  conversationally could present terms the carrier had already adjusted.
+- `get_risk` on a mid-term adjustment (MTA) now names the root policy risk the adjustment applies
+  to. An MTA is a separate risk hanging off a bound policy, and the summary previously presented it
+  as free-standing — nothing told the agent that the governing policy, its documents, and its dates
+  live on another risk entirely.
+- `get_renewal_changes` now leads with the expiring term's carrier of record, or "not recorded" when
+  the prior term never bound. Who held the risk last term is the first thing a broker asks alongside
+  a renewal diff, and the diff previously never said — the agent had to fish it out of the expiring
+  risk's submission list.
+- SKILL.md gained a "Coverage ids" table: all 22 released coverage ids with display name and
+  admitted/non-admitted status, sourced from `shared/constants/product.ts` and stamped "as of
+  0.0.24" so drift is traceable. `create_risk`'s tool description now points at the table. This is
+  the deliberate replacement for the getProducts tool floated at intake — a static list that changes
+  a few times a year does not earn a permanent tool slot in a full tools/list.
+
 ## [0.0.23] - 2026-08-07
 
 ### Added

@@ -86,7 +86,8 @@ with `modify_submission` without loading the properties group.
 ### Reading a risk (`get_risk`, `get_risk_activity`, `get_action_items`)
 
 - `get_risk` — full details: status, product, dates, submissions, quotes. The verification step
-  after every write.
+  after every write. When the risk is a mid-term adjustment (MTA), the summary names the root policy
+  risk it adjusts — the bound policy being changed lives on that root risk, not on the MTA.
 - `get_risk_activity` — use for "what's the latest on this risk?", "any notes from the team?", or
   before summarizing a risk's state. Returns notes, submissions, quote letters, bind requests, and
   declines, most recent first. Attached files show by name only — use `list_risk_files` when the
@@ -156,9 +157,10 @@ dynamic: answers reveal new questions, so work the loop below rather than trying
 everything up front.
 
 1. **Intake.** Ask what coverage the client needs and map it to a product id (`cyber`, `cglV2`,
-   `monolinePropertyV2`, `mpl`, …); when unsure, check an existing risk of the same flavor with
-   `get_risk`. Then invite everything at once: "Paste whatever you have — broker email, notes,
-   details — and attach any ACORDs or supplementals."
+   `monolinePropertyV2`, `mpl`, … — the full list is in the "Coverage ids" table below); when
+   unsure, check an existing risk of the same flavor with `get_risk`. Then invite everything at
+   once: "Paste whatever you have — broker email, notes, details — and attach any ACORDs or
+   supplementals."
 2. **Create** the risk with `create_risk`, then immediately call `get_submission_questions` to learn
    the actual question labels, types, and allowed options. For property-carrying coverages
    (`package*`, `monolineProperty*`), pass `tenancy_types` at creation — ask what occupies the
@@ -198,6 +200,41 @@ everything up front.
    another `modify_submission` call.
 8. **Submit** via the `submit_risk` flow below: summary, explicit confirmation, then report which
    markets it went to and any instant quotes or declines.
+
+### Coverage ids
+
+The released product ids `create_risk` accepts, with the display name the app and quote documents
+use and whether the product writes admitted or non-admitted (surplus lines) paper. All released
+products are non-admitted except Cyber. Where two products share a display name, the trailing
+parenthetical is the product vertical, not part of the name — pick the id by the applicant's
+business.
+
+<!-- Source: shared/constants/product.ts (releasedProductIds + getProductById), as of 0.0.24. -->
+
+| Coverage id                   | Name                                                            | Admitted?    |
+| ----------------------------- | --------------------------------------------------------------- | ------------ |
+| `bundle`                      | General Liability & Property (name varies with child coverages) | Non-admitted |
+| `cgl`                         | General Liability: Other Segments                               | Non-admitted |
+| `cglChurches`                 | General Liability: Churches and Other Houses of Worship         | Non-admitted |
+| `cglLRO`                      | General Liability for Lessor's Risk Only                        | Non-admitted |
+| `cglManufacturing`            | General Liability: Manufacturing                                | Non-admitted |
+| `cglRestaurants`              | General Liability for Restaurants                               | Non-admitted |
+| `cglRetailAndServices`        | General Liability: Retail & Services                            | Non-admitted |
+| `cglV2`                       | General Liability for Contractors                               | Non-admitted |
+| `cglVacantBuilding`           | General Liability for Vacant Buildings                          | Non-admitted |
+| `cglVacantLand`               | General Liability for Vacant Land                               | Non-admitted |
+| `cglVacants`                  | General Liability: Vacants                                      | Non-admitted |
+| `contractorsExcessStandalone` | Standalone Excess Liability (Contractors)                       | Non-admitted |
+| `cyber`                       | Cyber                                                           | Admitted     |
+| `lroExcessStandalone`         | Standalone Excess Liability (Lessor's Risk Only)                | Non-admitted |
+| `monolinePropertyV2`          | Monoline Property                                               | Non-admitted |
+| `monolineWind`                | Monoline Wind                                                   | Non-admitted |
+| `package`                     | Commercial Package (GL/Property) (Other)                        | Non-admitted |
+| `packageChurches`             | Package for Churches and Other Houses of Worship                | Non-admitted |
+| `packageLRO`                  | Package for Lessor's Risk Only                                  | Non-admitted |
+| `packageRestaurants`          | Package for Restaurants                                         | Non-admitted |
+| `packageRetailAndServices`    | Commercial Package (GL/Property) (Retail & Services)            | Non-admitted |
+| `packageVacantBuilding`       | Package for Vacant Buildings                                    | Non-admitted |
 
 ### Checking appetite before submitting (`get_appetite`)
 
@@ -315,6 +352,12 @@ the same quote number will just fail again.
 When the user asks about a specific quote, use `get_quote` to show the full picture — cost breakdown
 (premium, fees, taxes), limits, wind coverage and its estimated cost, subjectivities, and status
 flags. If the user picks a quote from the `get_risk` summary, use the EID shown there.
+
+On the package segments (LRO, restaurants, retail & services, vacant building, churches), monoline
+property/wind, and Churches-GL quotes it also lists the carrier's coverage adjustments
+("modifications") with the buildings each one affects, or states that none were recorded — so
+silence is never ambiguous. Other coverages — including the legacy generic package product, which
+the server never records modifications for — don't carry them, and the tool doesn't fetch there.
 
 ### Updating quotes (`update_quote`)
 
@@ -622,7 +665,9 @@ reports it instead. After creating, review dates and exposures with the user, ap
 `submit_risk`.
 
 `get_renewal_changes` shows field-by-field diffs against the expiring term with who changed what and
-when — useful for "what's different on the renewal?" before submitting it.
+when — useful for "what's different on the renewal?" before submitting it. The output leads with the
+expiring term's carrier of record; "not recorded" there means the prior term never bound, not a data
+error.
 
 ### Cloning submissions (`clone_submission`)
 
