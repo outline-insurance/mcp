@@ -7,6 +7,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.22] - 2026-08-07
+
+### Added
+
+- Referral outcomes now carry their WHY. The risk summary (returned by `get_risk`, `submit_risk`,
+  `resubmit_risk`, and `clone_submission`) selects and renders each submission's
+  `referDeclineReasons` (as `reason:` lines) and `quotedReasons` (as `note:` lines), and a risk with
+  any submission in REFERRED, UNDER_REVIEW, or CARRIER_REVIEW gets a one-line pointer: it is in
+  human underwriting review, check `get_risk_activity`, do not resubmit to shake it loose.
+  Previously a referral rendered as the bare status word — in the 0.0.21 incident five markets
+  referred at once and the agent had nothing to distinguish "underwriting wants a look" from "your
+  exposure data is wrong".
+- SKILL.md gained a "When a submission refers" section: relay reasons verbatim, never invent a cause
+  or present a referral as a decline, check activity for underwriting notes, resubmit only after
+  changing something a reason names, and treat every-market-referred as a probable data error (wrong
+  exposure unit) to re-check with the user.
+
 ## [0.0.21] - 2026-08-07
 
 ### Added

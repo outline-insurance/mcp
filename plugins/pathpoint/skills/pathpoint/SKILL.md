@@ -233,6 +233,26 @@ Validation failures come back listing the missing fields — relay them in plain
 fill them. After a successful submit, the tool returns the refreshed risk summary; report which
 markets it went to and any instant quotes or declines.
 
+### When a submission refers (`REFERRED`, `UNDER_REVIEW`, `CARRIER_REVIEW`)
+
+A referral is not a rejection and not an error: the submission is in human underwriting review —
+`UNDER_REVIEW` means Pathpoint's brokerage team has it, `CARRIER_REVIEW` means the carrier's
+underwriters do, and `REFERRED` is the settled referral state. The reviewers come back with a quote,
+questions, or a decline. The risk summary prints each submission's `reason:` lines (why it referred
+or declined) and `note:` lines (informational caveats on quoted submissions) when the server
+provides them. How to respond:
+
+- **Relay the reasons verbatim** to the user — never invent a cause for a bare `REFERRED` status,
+  and never present a referral as a decline.
+- **Check `get_risk_activity`** for underwriting notes and follow-ups; that is where the brokerage
+  team's questions appear.
+- **Do not resubmit to shake a referral loose.** Resubmitting is only right after actually changing
+  something a reason names (wrong exposure, wrong class code). If EVERY market referred or quoted
+  absurdly high at once, suspect a data error in the submission — a wrong unit in an exposure value
+  (see the percent-of-operations rule below) has caused exactly that — and re-check the figures with
+  the user before anything else.
+- Set expectations: a human underwriting review takes hours-to-days, not seconds.
+
 ### Choosing markets (`select_markets`)
 
 Steers which markets a not-yet-submitted risk goes to. Accepts carrier names ("Kinsale") or market
