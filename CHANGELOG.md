@@ -7,6 +7,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.21] - 2026-08-07
+
+### Added
+
+- Exposure-unit validation for the per-location "Class of business and exposure values" JSON. On
+  percent-basis products (`cglV2`, `contractorsExcessStandalone`) each selected class's `value` must
+  now be a number in 0–100 (a `%` suffix is normalized away); subcontracted-work classes
+  (91581/91583/91585/91591) are exempt, as they take the annual $ cost of the subcontracted work.
+  The risk's product id is fetched lazily — one extra query, only when a batch touches an exposure
+  field. Motivation: a live partner agent wrote a $100,000 revenue figure where the percent of
+  operations belonged; the server stores the value unvalidated and the rater multiplies payroll by
+  `value/100`, so every market quoted at ~1000x ($877,451 instead of $877) or referred. Nothing in
+  the flow ever surfaced the unit, making this the silent-failure twin of the free-text class-code
+  and tenancy writes the tool already guards.
+
+### Changed
+
+- The exposure-values question hint and the SKILL.md exposure guidance now spell out the units:
+  percent of operations on contractor GL products (never a dollar amount), $ cost for
+  subcontracted-work classes, real amounts (sales/sqft/units/acres) elsewhere. SKILL.md previously
+  said the basis was "payroll for contractor trades" — exactly the misreading that invites a dollar
+  figure — and its example value was amount-sized.
+
 ## [0.0.20] - 2026-08-06
 
 ### Added

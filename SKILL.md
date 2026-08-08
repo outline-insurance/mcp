@@ -399,11 +399,17 @@ tenancies:
   tenancy parsing silently at rating, exactly like an invented class code.
 - **Per-location exposures.** Each location's "Class of business and exposure values" question
   stores a JSON array with one entry per selected class code:
-  `[{"id":"91560","selected":true,"value":"250000"}]` — `selected` marks the classes operating at
-  that location, `value` is the exposure amount for that class. The amount's basis depends on the
-  class code AND the product (payroll for contractor trades, gross sales for retail/restaurants,
-  area for some premises classes, acres for vacant land) — the SAME code can rate on a different
-  basis per product: 61212 takes annual rents on `cglLRO` but building AREA on
+  `[{"id":"91560","selected":true,"value":"100"}]` — `selected` marks the classes operating at that
+  location, `value` is that class's exposure. The unit depends on the product and class, and getting
+  it wrong is silent and catastrophic. On contractor GL products (`cglV2`,
+  `contractorsExcessStandalone`) `value` is the **percent of the applicant's operations** (0–100,
+  percent classes at a location totaling 100) — NOT payroll, revenue, or any dollar amount; the
+  platform derives the dollar exposure internally, so a $100,000 figure written here rates the risk
+  at ~1000x and every market quotes absurdly or refers (this happened live). The exception on those
+  products: subcontracted-work classes (91581/91583/91585/91591) take the annual $ cost of that
+  subcontracted work. Other products take a real amount in the class's own basis (gross sales for
+  retail/restaurants, area for some premises classes, acres for vacant land) — and the SAME code can
+  rate on a different basis per product: 61212 takes annual rents on `cglLRO` but building AREA on
   `lroExcessStandalone`, where a rents-sized number reads as square footage and hard-declines on
   appetite. Ask the user for the figure that fits the class and product. Restaurant classes split
   food and liquor sales as two newline-separated numbers in one `value` string (`"400000\n50000"`).
