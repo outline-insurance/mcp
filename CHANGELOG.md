@@ -7,6 +7,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.25] - 2026-08-08
+
+Three layers of defense against classless submissions (ENG-916). An agent-driven integration created
+cglV2 submissions preselecting class codes from a different product's picker; the server silently
+dropped every code, stored an empty class of business that its own completeness check reads as
+answered, and the risks were submitted with no class of business. Each one reaches markets with no
+appetite match and lands in the UW referral queue.
+
+### Added
+
+- `create_risk` now validates `class_codes` against the requested coverage's class-of-business
+  picker option set before creating anything, from a bundled port of the same catalog the server's
+  sanitize step reads (drift-tested against the monorepo's class-code JSON on every test run). Codes
+  from a different product's picker fail the call with "(no risk created)", naming each offending
+  code's description, its actual group, and the coverages it IS valid for — steering the agent to
+  reconsider the coverage id (the incident's failure mode: right business, wrong product) or re-run
+  `search_class_codes`. Codes unknown to the catalog are refused too. Coverages outside the picker
+  mapping keep the structural check only — `bundle` (its option set depends on the child coverages)
+  and unmapped coverages like monolinePropertyV2 or cyber, where the server fails open and stores
+  the codes as given; the pre-flight mirrors that exactly rather than refusing preselects that work
+  today. Motivation: the server's sanitize step silently drops wrong-product codes and stores an
+  empty class of business — the create succeeds, nothing warns, and the classless risk looks
+  submittable.
+- A classless-submit guard in `submit_risk`, `clone_submission` (when submitting), and
+  `resubmit_risk`. Before the mutation fires, the tool reads the risk's class-of-business question
+  state; a REQUIRED class-of-business picker holding an empty or blank value refuses the submit with
+  remediation (`search_class_codes` → `modify_submission` → retry). The check inspects the value
+  itself, because the server's completeness flag treats the empty string as answered — the exact
+  trap that let these submissions through. `clone_submission`'s refusal comes after the clone is
+  created, as a success-shaped "NOT SUBMITTED" banner naming the new risk id, so the clone is never
+  stranded. When the question state cannot be read at all, all three refuse fail-closed with a
+  distinct "could not be verified" message. Optional pickers (cglManufacturing) and coverages
+  without a class-of-business question are unaffected. Motivation: submitRisk validates none of this
+  server-side, so the guard is the only gate between a classless draft and every market.
+
+### Changed
+
+- A create whose requested class codes were ALL dropped by the server now returns an error-level
+  result instead of a warning inside a success. After the pre-flight, a total drop is the residue
+  the local catalog cannot predict (drift, a server-side change, bundle) — and a WARNING beside
+  "Created draft risk" gets skimmed. The error still names the created risk id, states that the risk
+  WAS created but its class of business is UNSET and it must not be submitted until fixed, and says
+  that any field changes requested in the same call were NOT applied. Partial drops remain warnings
+  in a success result, as before.
+
+### Fixed
+
+- The create response's applied-preselects echo no longer renders an attribute echoed with no values
+  — a bare "classCodes:" line read as if it were a value — and a drop that left nothing applied now
+  says "No preselects were applied" instead of implying the rest landed. The `class_codes`
+  parameter's example also moved from 16900 (a restaurants code) to 91560 (a cglV2 contractor code):
+  the old example modeled exactly the wrong-product pairing the new validation refuses.
+
 ## [0.0.24] - 2026-08-08
 
 Closes out the ENG-914 contract queries. Nothing here is a new tool, deliberately: the core

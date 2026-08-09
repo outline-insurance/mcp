@@ -173,8 +173,21 @@ everything up front.
    — some verticals (`cglManufacturing` at least) never serve a class-of-business picker in the
    flow, yet their raters hard-require the risk-level class codes: a risk created without them is
    declined by every market with no appetite reason given. For products that do serve a picker
-   (`cglV2`, `cglVacants`), the preselect just skips it. Heed any warning in the create_risk
-   response about preselects the server did not apply.
+   (`cglV2`, `cglVacants`), the preselect just skips it. `class_codes` are validated against the
+   chosen coverage's own picker before anything is created, and a bad preselect fails the call with
+   "(no risk created)": codes from a different product's picker are each named with their
+   description, their actual group, and the coverages they ARE valid for; a code unknown to the
+   catalog is called out as possibly mistyped. A wrong-product code usually means the coverage id is
+   wrong for this business — reconsider it before reaching for different codes; otherwise re-run
+   `search_class_codes` and pick codes whose products include the coverage. The check only covers
+   coverages in the picker catalog: `bundle` (option set depends on the child coverages) and
+   coverages without a catalog row (`monolinePropertyV2`, `cyber`) pass codes through unchanged,
+   exactly as the server does — so codes you preselect there are stored as given, right or wrong. If
+   the server still drops EVERY requested code after creation, `create_risk` returns an error that
+   names the created risk: the risk exists, but its class of business is UNSET and it must not be
+   submitted until one is set (`search_class_codes` → `modify_submission`, verify with
+   `list_fields`) — and any `changes` passed in the same call were NOT applied, so re-apply those
+   too. A partial drop stays a warning inside a success result, as before — still heed it.
 3. **Files.** Upload each file with `upload_risk_file` and `extract: true`. Extraction runs in the
    background (about a minute) — keep collecting info meanwhile, and check `get_extraction_status`
    before the review step. If extraction fails, proceed without prefills and ask instead.
@@ -269,6 +282,19 @@ Before calling:
 Validation failures come back listing the missing fields — relay them in plain English and offer to
 fill them. After a successful submit, the tool returns the refreshed risk summary; report which
 markets it went to and any instant quotes or declines.
+
+**The classless-submit guard.** Before the mutation, the tool reads the risk's class-of-business
+question state and refuses to submit when a REQUIRED class-of-business picker is blank — including
+the empty-string state the server itself reports as complete, which is how classless submissions
+used to reach markets and land in the UW referral queue with no appetite match. The refusal names
+the blank question and the fix: find the right 5-digit code with `search_class_codes`, write it with
+`modify_submission`, then retry. The same pre-flight runs in `resubmit_risk` and in
+`clone_submission` when submitting — there the clone already exists, so the refusal arrives as a
+"NOT SUBMITTED" banner inside a success result naming the new risk id; fix the class of business,
+then `submit_risk` it. If the question state cannot be read at all, all three refuse with a distinct
+"could not be verified" message — the class may well be set, so retry or inspect with
+`get_submission_questions` rather than overwriting anything. Optional pickers (`cglManufacturing`)
+and coverages with no class-of-business question (`cyber`) never trigger the guard.
 
 ### When a submission refers (`REFERRED`, `UNDER_REVIEW`, `CARRIER_REVIEW`)
 
@@ -448,7 +474,11 @@ tenancies:
   it comes back empty) ask what the business actually does and use `search_class_codes` to find
   candidates. Either way, offer the top matches in plain English, then write the code(s)
   comma-separated (e.g. `"91560,91580"`). Free text fails classification silently at rating — never
-  invent codes.
+  invent codes. Class codes are also product-scoped: `search_class_codes` prints each hit's
+  products, and picking codes whose products include the risk's coverage is now enforced, not just
+  advised — `create_risk` rejects a preselect whose codes belong to a different coverage's picker
+  before creating anything, and the submit tools refuse a risk whose required class of business is
+  still blank (see the classless-submit guard under `submit_risk`).
 
     Both recommendation tools only return matches scoring 0.8 or above, so **an empty result is
     ambiguous** — no completed aggregation job, or nothing confident enough (and for tenancy, a
@@ -647,7 +677,9 @@ refused outright: those dates belong to an active policy, and changing them is e
 Use after quotes expire, markets decline, or the submission changed — "get me fresh quotes" or
 "resubmit to Vave". Targets specific carriers by name or all submittable markets when omitted.
 Carrier names are validated against the risk's submittable markets and the error lists the options,
-so on a mismatch just relay the choices.
+so on a mismatch just relay the choices. The classless-submit guard (see `submit_risk`) runs here
+too — a resubmit re-notifies markets, so a risk with a blank required class of business is refused
+with the same remediation.
 
 ### Declining a submission (`decline_submission`)
 
@@ -678,7 +710,9 @@ Show a summary of the source risk. Ask:
 
 The tool handles creating the risk, copying values, applying changes, and optionally submitting —
 all in one call. If the source risk has no product assigned, clone will fail with a clear error;
-have the user fix that on the source before retrying.
+have the user fix that on the source before retrying. When submitting, the classless-submit guard
+(see `submit_risk`) runs after the clone is created: a blank — or unreadable — required class of
+business leaves the clone intact but NOT submitted, and the result says so with the new risk id.
 
 ### Excess cross-sale (`create_excess_from_quote`)
 
