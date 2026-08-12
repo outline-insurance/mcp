@@ -7,6 +7,67 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.26] - 2026-08-11
+
+Two families of contractor-GL percentage rules that the web app enforces only in its UI, now
+surfaced and enforced by the tools (ENG-922). The cglV2 middle-markets business-mix grid was
+effectively invisible to an agent — its percent cells rendered as pathless bare labels or not at
+all, `get_submission_questions` reported an unsubmittable grid as fully answered, and nothing
+validated the whole-percent unit on write. And the percent-of-operations exposure total, which must
+land on exactly 100 across all locations on the risk together, was documented with the wrong scope
+("at a location") and checked by nothing but the web app's disabled Submit button — the server
+accepts a mis-totaled submit, so an agent-driven submission could send a misrated operations split
+to every market.
+
+### Added
+
+- `get_submission_questions` now surfaces the cglV2 middle-markets percentage groups properly:
+  business-mix cells carry their full section path (rendering like "Commercial › Industrial ›
+  Industrial (% new)"), and percent-total and operations-details percentage rows — previously
+  pathless bare labels or entirely invisible — appear with derived group paths too. Each cell's hint
+  teaches the rules the per-field wire carries nowhere: business-mix cells are whole percents 0–100
+  and ALL cells across BOTH the Residential and Commercial sections and BOTH columns (% new plus %
+  repair / remodel) must together total exactly 100; percent-total group rows must together
+  total 100. Rows under a required ancestor group with missing fields now appear as missing
+  questions — previously the tool said "All required questions are answered." on a business mix that
+  could never submit.
+- `modify_submission` validates writes to those percent cells against the unit they store: an int,
+  an exact-integer float, "40", and "40 %" all normalize to the integer 40 (the backing attribute is
+  a whole number); 0 and 100 are accepted; null clears the cell. An empty string, non-numeric text,
+  a fractional percent, or an out-of-range value is rejected with a teaching error that restates the
+  group's total-100 rule. Motivation: these cells previously fell through unvalidated — 4000, -5,
+  and free text all stored — and the group's must-total-100 rule then wedged the submission with
+  every visible field seemingly answered. A write that leaves a grid's projected total off 100 also
+  gets a prepended advisory stating the running total (mid-fill is normal; the advisory is the
+  reminder the read side cannot give, since these groups produce no server validation error).
+- The percent-of-operations exposure total on percent-basis products (`cglV2`,
+  `contractorsExcessStandalone`) is now taught at write time and enforced at submit time. The rule:
+  the selected non-subcontractor exposure percents must total exactly 100 across ALL locations on
+  the risk together — subcontracted-work classes 91581/91583/91585/91591 are dollar-basis and never
+  count. An exposure write that leaves the projected cross-location total off 100 gets a prepended
+  advisory stating the running total (the write still succeeds — filling a multi-location risk one
+  location at a time is normal), while a single write whose own selected percents exceed 100 is
+  refused outright, since other locations can only add to the sum and it can never become valid. At
+  submit time, `submit_risk`, `resubmit_risk`, and `clone_submission` (when submitting) refuse
+  fail-closed when the cross-location total is not exactly 100, when nothing countable exists, or
+  when the exposure state or product cannot be verified; `clone_submission`'s refusal is
+  success-shaped ("NOT SUBMITTED" — the clone exists but was not sent). Motivation: the web app
+  disables its Submit button until the total is exactly 100, but the server does not check at submit
+  time, so these tools were an ungated path that could send a mis-totaled risk to every market (the
+  gate is client-side and best-effort; server-side enforcement remains the durable fix). The
+  arithmetic mirrors the platform exactly — shares accumulate with JavaScript parseInt semantics
+  (decimals truncate, "1e2" reads as 1, hex prefixes honored) — and a stored value the platform
+  cannot read as a number at all refuses fail-closed, naming the class and value to rewrite, since
+  it makes the platform's own total NaN and the web could never submit it either.
+
+### Fixed
+
+- Three places described the percent-of-operations total as per-location ("percent classes at a
+  location totaling 100"); the real rule is across all locations on the risk together, and the
+  per-location reading invites an agent to write each location up to 100 — a guaranteed refusal on
+  any multi-location risk. The exposure question's hint, the out-of-range exposure error, and
+  SKILL.md's exposure-units rule now all state the cross-location scope.
+
 ## [0.0.25] - 2026-08-08
 
 Three layers of defense against classless submissions (ENG-916). An agent-driven integration created

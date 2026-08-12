@@ -495,17 +495,37 @@ tenancies:
   `[{"id":"91560","selected":true,"value":"100"}]` — `selected` marks the classes operating at that
   location, `value` is that class's exposure. The unit depends on the product and class, and getting
   it wrong is silent and catastrophic. On contractor GL products (`cglV2`,
-  `contractorsExcessStandalone`) `value` is the **percent of the applicant's operations** (0–100,
-  percent classes at a location totaling 100) — NOT payroll, revenue, or any dollar amount; the
-  platform derives the dollar exposure internally, so a $100,000 figure written here rates the risk
-  at ~1000x and every market quotes absurdly or refers (this happened live). The exception on those
-  products: subcontracted-work classes (91581/91583/91585/91591) take the annual $ cost of that
-  subcontracted work. Other products take a real amount in the class's own basis (gross sales for
+  `contractorsExcessStandalone`) `value` is the **percent of the applicant's operations** (0–100;
+  the selected percent classes must total exactly 100 across ALL locations on the risk together —
+  see the next bullet) — NOT payroll, revenue, or any dollar amount; the platform derives the dollar
+  exposure internally, so a $100,000 figure written here rates the risk at ~1000x and every market
+  quotes absurdly or refers (this happened live). The exception on those products:
+  subcontracted-work classes (91581/91583/91585/91591) take the annual $ cost of that subcontracted
+  work. Other products take a real amount in the class's own basis (gross sales for
   retail/restaurants, area for some premises classes, acres for vacant land) — and the SAME code can
   rate on a different basis per product: 61212 takes annual rents on `cglLRO` but building AREA on
   `lroExcessStandalone`, where a rents-sized number reads as square footage and hard-declines on
   appetite. Ask the user for the figure that fits the class and product. Restaurant classes split
   food and liquor sales as two newline-separated numbers in one `value` string (`"400000\n50000"`).
+- **The percents must total exactly 100 across the whole risk.** On the percent-basis products
+  (`cglV2`, `contractorsExcessStandalone`) the selected non-subcontractor percents are summed across
+  EVERY location on the risk together — not per location — and that one cross-location sum must be
+  exactly 100 before the risk can go to markets. Subcontracted-work classes
+  (91581/91583/91585/91591) are dollar-basis and never count toward it. Exposure writes keep you
+  oriented: a write that leaves the projected cross-location total off 100 opens with an advisory
+  stating the running total. The write itself still succeeds — a multi-location risk is filled one
+  location at a time and legitimately passes through partial totals — so keep working until the last
+  write lands the total on exactly 100. The one write that IS refused outright is a single location
+  whose own selected percents already exceed 100: other locations can only add to the sum, so it can
+  never become valid — fix the split and re-send. At submit time the total is enforced fail-closed:
+  `submit_risk`, `resubmit_risk`, and `clone_submission` (when submitting) refuse when the
+  cross-location total is not exactly 100, when no countable percent exposure exists at all, or when
+  the exposure state or product cannot be verified. The web app disables its Submit button until the
+  total is 100, but the server never checks at submit time — this guard is the only gate, so expect
+  the refusal rather than fighting it (`clone_submission`'s arrives as a success-shaped "NOT
+  SUBMITTED" banner: the clone exists, it just was not sent). The fix loop is always the same:
+  `get_submission_questions` to see each location's exposure values and the gap, `modify_submission`
+  to correct the split, then `submit_risk`.
 - **Subcontractors page (contractors).** "Does applicant hire subcontractors…" is a yes/no; a yes
   cascades follow-ups including "What type of work is subcontracted?". That question does NOT take
   the trade's own class code — it only accepts the "Contractors – Subcontracted Work" codes listed
@@ -515,6 +535,24 @@ tenancies:
 - **Exposure follow-through.** Every class code selected anywhere (vertical picker AND subcontracted
   work) must get an entry in each location's exposure JSON — validation errors name any code left
   without one.
+- **Middle-markets business mix (cglV2).** Middle-markets contractor submissions carry a
+  business-mix grid: the Residential and Commercial sections each break into operation rows, and
+  each row has two percent cells — "% new" and "% repair / remodel". `get_submission_questions`
+  renders every cell with its full section path (e.g. "Commercial › Industrial › Industrial (%
+  new)") and a hint carrying the rule the grid enforces: each cell is a whole percent 0–100 of the
+  overall operations mix, and ALL cells across BOTH sections and BOTH columns must together total
+  exactly 100. Answer cells with `modify_submission` using the pathed label (or the bare cell label
+  when it is unambiguous). Writes are validated to the unit the cell stores: an int, an
+  exact-integer float, `"40"`, and `"40 %"` all normalize to the integer 40; 0 and 100 are fine;
+  `null` clears a cell. An empty string, non-numeric text, a fractional percent, or an out-of-range
+  value is rejected with an error restating the rule — a dollar figure written into a percent cell
+  is the classic mistake. A grid whose percents do not total 100 is unsubmittable, and its blank
+  cells surface as missing questions in `get_submission_questions` — treat them as unanswered work,
+  not optional noise.
+- **Percent-total groups.** The same submissions carry other percentage groups (operations-details
+  percentage rows among them) whose hint reads "this group's percentages must together total exactly
+  100": each row is a whole percent 0–100, the group's rows must sum to exactly 100, and writes
+  follow the same normalization and rejection rules as business-mix cells.
 
 ### Excess standalone products (`contractorsExcessStandalone`, `lroExcessStandalone`)
 
