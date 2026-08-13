@@ -7,6 +7,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.27] - 2026-08-12
+
+The embedded GraphQL schema and the question-hint layer drifted from the live API, and nothing
+automated noticed (ENG-927): CI's generated-file sync gate checks the generated command files but
+not `gen/schema_embedded.go`, and no test pinned the hint map to the `ChoiceComponent` enum. Both
+gaps now carry drift alarms.
+
+### Fixed
+
+- The embedded schema behind `p schema list` / `p schema describe` was stale: it was missing the
+  `FLOAT_MONEYINPUT` choice component and the new access-semantics descriptions on
+  `addGuidedClassificationInputs`, `attachExtractionToRisk`, and
+  `completeGuidedClassificationInputs`. Regenerated. A new drift test
+  (`codegen.TestEmbeddedSchemaMatchesLiveSDL`) fails in the monorepo whenever the embed does not
+  match the merged live SDL byte-for-byte, so the next schema change that touches only descriptions
+  or enum values cannot ship a stale embed past a local test run.
+- `get_submission_questions` renders `FLOAT_MONEYINPUT` fields (`targetPremium`,
+  `greatestTotalAnyOneLoss`, and the 12 other money attributes the schema repointed from
+  `MONEYINPUT`) with the proper "money" type hint instead of the generic "float moneyinput"
+  fallback, and `NONNULLABLE_SELECT` fields as "choose one" instead of "nonnullable select".
+
+### Added
+
+- A drift test (`mcp.TestComponentHintsCoverChoiceComponentEnum`) pins the component-hint layer to
+  the live `ChoiceComponent` enum: an enum value that would fall through to the generic humanized
+  fallback — and a hint-map key that no longer exists in the enum — now fails the tools/p test suite
+  instead of silently degrading agent-facing question rendering.
+
 ## [0.0.26] - 2026-08-11
 
 Two families of contractor-GL percentage rules that the web app enforces only in its UI, now
