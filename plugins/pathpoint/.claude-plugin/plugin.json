@@ -2,7 +2,7 @@
   "name": "pathpoint",
   "displayName": "Pathpoint",
   "description": "Quote, submit, and manage E&S risks conversationally in Claude via the Pathpoint p CLI MCP server.",
-  "version": "0.0.27",
+  "version": "0.0.28",
   "author": {
     "name": "Pathpoint",
     "url": "https://pathpoint.com"

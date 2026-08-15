@@ -7,6 +7,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.28] - 2026-08-14
+
+Every agent-driven cglV2 (GL for Contractors) submission could wedge on one eligibility question.
+The cglV2 product composes both the `CGLV2Base` and `ContractorsExcessCore` aspects, and each
+contributes its own "None of the above" attribute to the same "Select all of the types of
+locations…" checkbox group — two visible checkbox items with identical labels and identical group
+paths. The web app collapses the pair (it renders ONE "None of the above" checkbox bound to the
+first choice and never writes the second), but `p` surfaced both: `get_submission_questions` listed
+the same missing question twice, and `modify_submission` refused the label as ambiguous with
+"identically-labelled duplicates cannot be addressed by label — set them in the app". An agent had
+no way to finish the Eligibility page.
+
+### Fixed
+
+- Duplicate "None of the above" terminators inside ONE checkbox group are now collapsed to the first
+  (by order) when building the question state, mirroring the web app's rendering exactly:
+  `get_submission_questions` lists the question once, and `modify_submission` resolves the label to
+  the same underlying attribute the web writes. Terminators in DIFFERENT groups keep their existing
+  ambiguity semantics (distinct suffixed group paths, qualified-label resolution).
+- Regenerated the embedded GraphQL schema (`doesElectricalExceedFifteenPercent` had been added
+  server-side, tripping `codegen.TestEmbeddedSchemaMatchesLiveSDL`).
+
 ## [0.0.27] - 2026-08-12
 
 The embedded GraphQL schema and the question-hint layer drifted from the live API, and nothing
