@@ -5,6 +5,36 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.30] - 2026-08-19
+
+Fixes the Claude Desktop / claude.ai plugin import. Every release now publishes
+`pathpoint-plugin.zip`, and that is what the installers stage and the docs point at.
+
+### Fixed
+
+- The zip staged for Claude Desktop could not be installed through Claude's **Upload local plugin**
+  dialog. `pathpoint-skill.zip` is a bare `SKILL.md`, but that uploader validates the archive
+  against a `.claude-plugin/plugin.json` manifest and rejected it with _"Zip must contain a
+  .claude-plugin/plugin.json file or a top-level SKILL.md declaring plugin components"_ — the same
+  single error `claude plugin validate` reports for a manifest-less directory. Releases now also
+  publish `pathpoint-plugin.zip`, carrying the manifest and the skill at the archive root: the same
+  tree the marketplace ships and `claude plugin validate --strict` already gates.
+- `install.sh` and `install.ps1` stage `pathpoint-plugin.zip` and name the **Plugins → Upload local
+  plugin** dialog. `P_VERSION`-pinned installs on releases before this one fall back to
+  `pathpoint-skill.zip` and its **Skills → Create skill** wording; a failed fetch is cleaned up,
+  since `curl -o` truncates the destination before giving up and an empty zip uploads worse than a
+  missing one.
+- `install-local.sh` builds both zips, and now removes them first. `zip` appends to an existing
+  archive, so the local skill zip had been carrying `quote.md`, `update-quote.md`,
+  `modify-submission.md` and `clone-submission.md` — files `skills/` dropped back in April — into
+  every build since.
+
+### Changed
+
+- README, landing page and guide lead with `pathpoint-plugin.zip` and spell out which zip belongs in
+  which dialog. `pathpoint-skill.zip` is still published for Claude installs that only offer the
+  older Skills importer.
+
 ## [0.0.29] - 2026-08-18
 
 Agentic subjectivity collection: every subjectivity response type can now be answered through the

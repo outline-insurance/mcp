@@ -286,7 +286,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.29 · latest release
+        <span class="dot"></span> v0.0.30 · latest release
       </a>
       <h1>Agent guide</h1>
       <p class="lede">Everything you need to quote, submit, and bind E&amp;S business with Pathpoint through Claude — from install to bind request.</p>
@@ -350,7 +350,7 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
         <pre class="block"><button class="copy-pre" data-copy="g-plugin" aria-label="Copy plugin install commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-plugin"><span class="k">claude</span> plugin marketplace add https://github.com/outline-insurance/mcp.git
 <span class="k">claude</span> plugin install pathpoint@outline-insurance --scope user</code></pre>
         <h3 style="font-size:1.05rem;margin:26px 0 6px">claude.ai</h3>
-        <p style="color:var(--muted);font-size:.95rem">The Pathpoint tools run locally, so claude.ai on its own can't reach them — use Claude Desktop or Claude Code for actual risk work. What you can add on claude.ai (and in Claude Desktop, alongside the tools) is the skill: upload <code>pathpoint-skill.zip</code> from the <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">latest release</a> under <b>Settings → Capabilities → Skills</b> to teach Claude the Pathpoint workflow.</p>
+        <p style="color:var(--muted);font-size:.95rem">The Pathpoint tools run locally, so claude.ai on its own can't reach them — use Claude Desktop or Claude Code for actual risk work. What you can add on claude.ai (and in Claude Desktop, alongside the tools) is the skill: upload <code>pathpoint-plugin.zip</code> from the <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">latest release</a> under <b>Settings → Capabilities → Plugins → Upload local plugin</b> to teach Claude the Pathpoint workflow. Reach for <code>pathpoint-skill.zip</code> only if your Claude still shows the older <b>Skills → Create skill</b> importer — the plugin dialog rejects it.</p>
 
         <p>Try it now — in Claude Desktop or Claude Code, ask Claude <em>"Show me my recent Pathpoint submissions"</em> to confirm everything is connected.</p>
       </section>

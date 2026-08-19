@@ -612,23 +612,45 @@ try {
             Write-Host (Get-ManualConfigSnippet $ExePath)
         }
 
-        # Claude Desktop skills don't have a local install path — they're
-        # uploaded to Anthropic's servers via the in-app Settings UI. Stage
-        # the zip somewhere obvious so the user only has to drag-and-drop.
+        # Claude Desktop skills and plugins don't have a local install path —
+        # they're uploaded to Anthropic's servers via the in-app Settings UI.
+        # Stage the zip somewhere obvious so the user only has to drag-and-drop.
+        #
+        # pathpoint-plugin.zip is preferred: the current dialog is "Upload local
+        # plugin", whose validator wants a .claude-plugin/plugin.json manifest
+        # and rejects the bare SKILL.md in pathpoint-skill.zip. Releases before
+        # 0.0.30 publish only the skill zip, so P_VERSION-pinned installs fall
+        # back to it.
         $Downloads = Join-Path $env:USERPROFILE 'Downloads'
         if (-not (Test-Path $Downloads)) { $Downloads = $env:USERPROFILE }
+        $PluginZipDest = Join-Path $Downloads 'pathpoint-plugin.zip'
         $SkillZipDest = Join-Path $Downloads 'pathpoint-skill.zip'
         try {
-            Invoke-WebRequest -Uri "$BaseUrl/pathpoint-skill.zip" -OutFile $SkillZipDest -UseBasicParsing -ErrorAction Stop
+            Invoke-WebRequest -Uri "$BaseUrl/pathpoint-plugin.zip" -OutFile $PluginZipDest -UseBasicParsing -ErrorAction Stop
             Write-Host ""
-            Write-Host "Pathpoint skill for Claude Desktop staged at:"
-            Write-Host "  $SkillZipDest"
-            Write-Host "To finish installing the skill in Claude Desktop:"
+            Write-Host "Pathpoint plugin for Claude Desktop staged at:"
+            Write-Host "  $PluginZipDest"
+            Write-Host "To finish installing it in Claude Desktop:"
             Write-Host "  1. Open Claude Desktop"
-            Write-Host "  2. Settings -> Capabilities -> Skills -> Create skill"
+            Write-Host "  2. Settings -> Capabilities -> Plugins -> Upload local plugin"
             Write-Host "  3. Upload the zip above"
         } catch {
-            # skill zip not published in this release — skip silently
+            # A failed download can still leave a truncated file behind, and an
+            # empty zip is worse than none — clear it before falling back.
+            Remove-Item -Force -ErrorAction SilentlyContinue $PluginZipDest
+            try {
+                Invoke-WebRequest -Uri "$BaseUrl/pathpoint-skill.zip" -OutFile $SkillZipDest -UseBasicParsing -ErrorAction Stop
+                Write-Host ""
+                Write-Host "Pathpoint skill for Claude Desktop staged at:"
+                Write-Host "  $SkillZipDest"
+                Write-Host "To finish installing the skill in Claude Desktop:"
+                Write-Host "  1. Open Claude Desktop"
+                Write-Host "  2. Settings -> Capabilities -> Skills -> Create skill"
+                Write-Host "  3. Upload the zip above"
+            } catch {
+                # neither zip published in this release — skip silently
+                Remove-Item -Force -ErrorAction SilentlyContinue $SkillZipDest
+            }
         }
     } else {
         Write-Host "Claude Desktop not detected; skipping MCP config and skill staging."

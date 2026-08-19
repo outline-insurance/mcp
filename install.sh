@@ -589,12 +589,32 @@ configure_claude_desktop() {
   fi
 }
 
-# Claude Desktop skills don't have a local install path — they're
+# Claude Desktop skills and plugins don't have a local install path — they're
 # uploaded to Anthropic's servers via the in-app Settings UI. Stage
 # the zip somewhere obvious so the user only has to drag-and-drop.
+#
+# pathpoint-plugin.zip is preferred: the current dialog is "Upload local
+# plugin", whose validator wants a .claude-plugin/plugin.json manifest and
+# rejects the bare SKILL.md that pathpoint-skill.zip contains. Releases before
+# 0.0.30 publish only the skill zip, so P_VERSION-pinned installs fall back to
+# it — and the failed fetch is cleaned up, because curl -o truncates the
+# destination before it gives up and an empty zip is worse than none.
 stage_skill_zip() {
-  SKILL_ZIP_DEST="$HOME/Downloads/pathpoint-skill.zip"
-  [ -d "$HOME/Downloads" ] || SKILL_ZIP_DEST="$HOME/pathpoint-skill.zip"
+  ZIP_DIR="$HOME/Downloads"
+  [ -d "$ZIP_DIR" ] || ZIP_DIR="$HOME"
+  PLUGIN_ZIP_DEST="$ZIP_DIR/pathpoint-plugin.zip"
+  SKILL_ZIP_DEST="$ZIP_DIR/pathpoint-skill.zip"
+  if curl -fsSL "$BASE_URL/pathpoint-plugin.zip" -o "$PLUGIN_ZIP_DEST" 2>/dev/null; then
+    echo ""
+    echo "Pathpoint plugin for Claude Desktop staged at:"
+    echo "  $PLUGIN_ZIP_DEST"
+    echo "To finish installing it in Claude Desktop:"
+    echo "  1. Open Claude Desktop"
+    echo "  2. Settings → Capabilities → Plugins → Upload local plugin"
+    echo "  3. Upload the zip above"
+    return 0
+  fi
+  rm -f "$PLUGIN_ZIP_DEST"
   if curl -fsSL "$BASE_URL/pathpoint-skill.zip" -o "$SKILL_ZIP_DEST" 2>/dev/null; then
     echo ""
     echo "Pathpoint skill for Claude Desktop staged at:"
@@ -603,6 +623,8 @@ stage_skill_zip() {
     echo "  1. Open Claude Desktop"
     echo "  2. Settings → Capabilities → Skills → Create skill"
     echo "  3. Upload the zip above"
+  else
+    rm -f "$SKILL_ZIP_DEST"
   fi
 }
 

@@ -249,7 +249,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.29 · latest release
+        <span class="dot"></span> v0.0.30 · latest release
       </a>
       <h1>Pathpoint MCP Server</h1>
       <p class="lede">From "I need a GL quote" to bind request — <b>in one conversation</b>. The Pathpoint MCP server for Claude, installed in one line.</p>
@@ -443,7 +443,7 @@
         <pre class="block"><button class="copy-pre" data-copy="b-plugin" aria-label="Copy plugin install commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="b-plugin"><span class="k">claude</span> plugin marketplace add https://github.com/outline-insurance/mcp.git
 <span class="k">claude</span> plugin install pathpoint@outline-insurance --scope user</code></pre>
         <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude.ai &amp; Claude Desktop skill</h3>
-        <p style="color:var(--muted);font-size:.95rem">Plugins are Claude Code–only, and the skill adds guidance, not tools — the Pathpoint tools run locally, so risk work needs Claude Desktop (wired up by the installer) or Claude Code. To add the skill on claude.ai or Claude Desktop: grab <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">pathpoint-skill.zip</a> from the latest release (the installer also stages a copy in <code>Downloads</code> when it detects Claude Desktop), then upload it under <b>Settings → Capabilities → Skills → Create skill</b>.</p>
+        <p style="color:var(--muted);font-size:.95rem">Plugins are Claude Code–only, and the skill adds guidance, not tools — the Pathpoint tools run locally, so risk work needs Claude Desktop (wired up by the installer) or Claude Code. To add the skill on claude.ai or Claude Desktop: grab <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">pathpoint-plugin.zip</a> from the latest release (the installer also stages a copy in <code>Downloads</code> when it detects Claude Desktop), then upload it under <b>Settings → Capabilities → Plugins → Upload local plugin</b>. Upload <code>pathpoint-plugin.zip</code>, not <code>pathpoint-skill.zip</code> — the plugin dialog requires a <code>.claude-plugin/plugin.json</code> manifest and rejects the bare-skill zip, which is only for the older <b>Skills → Create skill</b> importer.</p>
         <h3 style="font-size:1.05rem;margin:26px 0 12px">Troubleshooting</h3>
         <div class="tbl-scroll">
         <table class="tbl">

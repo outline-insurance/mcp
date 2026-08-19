@@ -2,7 +2,7 @@
 
 Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
 
-Current release: **v0.0.29** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+Current release: **v0.0.30** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 ## Install
 
@@ -49,7 +49,8 @@ On macOS, if you see a Gatekeeper warning, clear the quarantine flag: `xattr -d 
 | `p_<ver>_windows_<arch>.zip`   | Windows binary (amd64, arm64) |
 | `checksums.txt`                | SHA-256 for every archive |
 | `SKILL.md`                     | Pathpoint skill source (also mirrored at repo root) |
-| `pathpoint-skill.zip`          | Skill packaged for Claude Desktop / Claude.ai Web |
+| `pathpoint-plugin.zip`         | Plugin packaged for Claude Desktop / Claude.ai (**upload this one**) |
+| `pathpoint-skill.zip`          | Bare skill zip for the older Skills-only importer |
 
 ## Pathpoint skill
 
@@ -76,13 +77,15 @@ curl -fsSL https://raw.githubusercontent.com/outline-insurance/mcp/main/SKILL.md
 
 ### Claude Desktop / Claude.ai Web (manual zip import)
 
-Claude Desktop skills live on Anthropic's servers rather than a local path, so the final step is manual. The installer already helps: it pre-downloads `pathpoint-skill.zip` to your `Downloads` folder when it detects Claude Desktop.
+Claude Desktop skills live on Anthropic's servers rather than a local path, so the final step is manual. The installer already helps: it pre-downloads `pathpoint-plugin.zip` to your `Downloads` folder when it detects Claude Desktop.
 
 The zip adds guidance, not tools — the Pathpoint tools run locally over stdio, so claude.ai on its own can't reach them; actual risk work needs Claude Desktop or Claude Code.
 
 1. Open Claude Desktop.
-2. **Settings → Capabilities → Skills → Create skill** → upload `~/Downloads/pathpoint-skill.zip` (or `%USERPROFILE%\Downloads\pathpoint-skill.zip` on Windows).
+2. **Settings → Capabilities → Plugins → Upload local plugin** → upload `~/Downloads/pathpoint-plugin.zip` (or `%USERPROFILE%\Downloads\pathpoint-plugin.zip` on Windows).
 3. Restart Claude Desktop, or start a fresh chat on Claude.ai Web.
+
+Upload `pathpoint-plugin.zip`, not `pathpoint-skill.zip`. The plugin uploader needs a `.claude-plugin/plugin.json` manifest; `pathpoint-skill.zip` is a bare `SKILL.md` for the older **Skills → Create skill** importer and fails plugin validation with *"Zip must contain a .claude-plugin/plugin.json file or a top-level SKILL.md declaring plugin components"*. Both are published on every release, so use whichever matches the dialog in front of you.
 
 If you're on Claude.ai Web or installed before this step was added, you can grab the zip directly from the [latest release](https://github.com/outline-insurance/mcp/releases/latest).
 
