@@ -35,7 +35,7 @@ Every operation follows the same shape:
 
 ## Not every tool is loaded (`list_toolsets`, `enable_toolset`)
 
-Only the **core** group loads by default — everything in "The everyday loop" below. Six specialist
+Only the **core** group loads by default — everything in "The everyday loop" below. Seven specialist
 groups are hidden from the tool list to keep the context payload small:
 
 | Group          | What is in it                                                                       |
@@ -46,6 +46,7 @@ groups are hidden from the tool list to keep the context payload small:
 | `admin`        | Agency-network and agency records (commissions), your own profile and sharing scope |
 | `claims`       | Loss-history rows on a building, and flagging a new claim against an issued quote   |
 | `hazard`       | Ordering third-party hazard data (wildfire scores) — internal ops/QA work           |
+| `esign`        | The e-sign packet on a selected quote: state field census, generate, invalidate     |
 
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
@@ -638,26 +639,38 @@ when the user picks a quote but isn't ready to request bind (request_bind select
 ### Subjectivities (`list_subjectivities`, `answer_subjectivity`, `upload_subjectivity_file`)
 
 Subjectivities are the bind requirements on a quote. `list_subjectivities` shows them with EIDs,
-response types, and completion status — by default just the selected quote's (pass
-`all_quotes: true` for everything).
+response types, subjectivity types, and completion status — by default just the selected quote's
+(pass `all_quotes: true` for everything). An INSURED_PAY item is annotated "not required for your
+agency" when the agency is not insured-pay: bind readiness skips it, so never chase it.
 
-To answer one, pass `answer_subjectivity` the EID (or an unambiguous title fragment) plus `text`
-and/or `mark_complete: true`. Match the response type:
+To answer one, pass `answer_subjectivity` the EID (or an unambiguous title fragment) and the ONE
+parameter matching the response type — a mismatched parameter is refused, because bind readiness
+only consults the field matching the type:
 
-- **TEXT / CONTACT_INFO** — collect the answer in conversation, save it as `text`, mark complete.
+- **TEXT** — `text`.
+- **DATE** — `date` (YYYY-MM-DD). For the EFFECTIVE_DATE item specifically, prefer
+  `update_policy_dates`: it writes the real policy dates AND this subjectivity in one call.
+- **CHECKBOX** — `checkbox: true` (false clears it).
+- **CONTACT_INFO** — the `contact_full_name` / `contact_email` / `contact_phone` trio, all three at
+  once. Partial contacts are refused: readiness requires all three fields non-empty.
+- **SELECT_LICENSED_AGENT** (a TEXT item) — `licensed_agent_email`; it resolves against the agency's
+  licensed agents with an NPN on file and stores the full agent record. No or ambiguous match errors
+  with the selectable agents.
 - **FILES** — use `upload_subjectivity_file` with a local file path; it uploads, attaches, and marks
   the subjectivity complete in one step. Confirm the file is the right document first.
-- **CHECKBOX / DATE** — confirm with the user, then `mark_complete: true`.
 
-Read back the saved answer before marking complete when the answer matters (payment info, inspection
-contacts).
+`mark_complete: true` can accompany any answer or stand alone, but note bind readiness ignores it —
+completion comes from the answer itself (text/date/checkbox/files/e-signature). Read back the saved
+answer before marking complete when the answer matters (payment info, inspection contacts).
 
 ### The insured contact (`get_insured_contact`, `set_insured_contact`)
 
 The named person Pathpoint emails the signing documents to, saved against a quote. It is the real
 record: writing contact JSON into a CONTACT_INFO subjectivity sets the subjectivity text but leaves
-this empty, and the Inspection Contact / Insured Pay / Audit Contact answers are fed from here. Both
-tools take the quote UUID plus the risk UUID — an EID or quote number is rejected by the API.
+this empty, and the Inspection Contact / Insured Pay / Audit Contact answers are fed from here. It
+also gates the e-sign flow: after the agent signs a packet, Pathpoint emails the insured their
+signing turn ONLY when this contact exists (see the esign toolset). Both tools take the risk UUID
+plus any quote identifier — number, EID, or UUID — resolved through the risk.
 
 - `get_insured_contact` — the saved contact, any contacts on the risk's other quotes, and the
   prefill candidates the app would offer. Having none is a normal state, not an error: the form only
@@ -702,6 +715,9 @@ keep straight:
 - Both dates are required. Don't silently assume an annual term: confirm the expiration with the
   user (most policies are effective + 1 year, but not all).
 - Documents generated earlier (quote letter, ACORDs) keep the old dates until regenerated.
+- When the selected quote carries an EFFECTIVE_DATE subjectivity, the tool also writes its date
+  response to match (the app does the same) — so a date fix clears that bind requirement in the same
+  call.
 
 It operates on the risk's **selected quote only** — the mutation rewrites the application's policy
 dates along with the quote's, so pointing it at a non-selected quote would leave the application and
@@ -709,6 +725,45 @@ the quote being bound disagreeing. If nothing is selected yet, `select_quote` fi
 `quote_identifier` is accepted as confirmation but must name the selected quote. Bound quotes are
 refused outright: those dates belong to an active policy, and changing them is endorsement work
 (`create_endorsement_request`), not a pre-bind fix.
+
+## The e-sign packet (esign toolset)
+
+Load with `enable_toolset` — these three tools are hidden by default.
+
+Most FILES-type bind requirements (ACORDs, the TRIA form, the Pathpoint supplemental, no-known-loss
+letters, per-state diligent-effort and affidavit forms) are normally satisfied in one stroke by the
+**e-sign packet**: a bundle of pre-filled documents both the licensed agent and the named insured
+sign electronically. The alternative — collecting each signed document and uploading it with
+`upload_subjectivity_file` — always works, but the packet is how the app expects these to clear.
+
+The flow, on the risk's **selected quote**:
+
+1. **`get_state_subjectivity_fields`** — lists the fields the packet's state form requires for this
+   quote's state and coverage: names, meanings, choice options, and prefills (quote dates, the
+   stored licensed agent, the insured contact). It also lists which open subjectivities the signed
+   packet is expected to satisfy. Ask the user only for fields without a prefill. States differ a
+   lot: Georgia needs only the universal four (signing agent, dates, insured signatory name and
+   title); New York and California add declination details against their admitted-carrier lists.
+2. **`generate_esign_packet`** — takes the answers as a `field_values` JSON object and returns the
+   **licensed agent's signing URL**. It mirrors the app form's submit exactly: it saves the
+   licensed-agent subjectivity, and when the dates changed it updates the policy dates (application
+    - quote + EFFECTIVE_DATE subjectivity) and regenerates the supplemental first, so the packet
+      embeds the right dates.
+3. **Signing order matters.** The agent signs first via the returned URL (valid 20 days). When the
+   agent finishes, Pathpoint automatically emails the insured their own signing link — **but only if
+   an insured contact is saved on the quote** (`set_insured_contact`); without one, nobody emails
+   the insured and the agent must arrange their signature. Both tools warn when the contact is
+   missing.
+4. When both parties have signed, the covered subjectivities complete on their own — confirm with
+   `list_subjectivities` rather than assuming.
+5. **`invalidate_esign_packet`** — expires the outstanding signing URLs and reopens any e-signed
+   subjectivities. Use it when an answer changes (dates, signatory, declination details) before
+   regenerating. Note that replacing the insured contact invalidates the packet as a side effect
+   too.
+
+Two boundaries: quotes without a subjectivity state have no state form (satisfy items individually),
+and the interactive signing ceremony itself stays in the browser — these tools produce and manage
+the links, they cannot sign.
 
 ### Resubmitting (`resubmit_risk`)
 
@@ -1091,14 +1146,13 @@ Load with `enable_toolset` — this one tool is hidden by default.
 Check `list_toolsets` before telling a user something is unavailable — most of what looks missing is
 merely a hidden group. What genuinely is not here:
 
-- **E-signing** — the interactive signing ceremony, and the signing URL and manual-sign fallback
-  documents.
+- **The signing ceremony itself** — the `esign` toolset generates and manages the packet and its
+  signing URLs, but the interactive signing happens in the browser, and the manual-sign fallback
+  documents are app-only.
 - **Mid-term adjustments** — the MTA wizard, which previews a premium delta and creates a separate
   risk. Distinct from `create_endorsement_request`, which files an ops-mediated request and does not
   price the change.
 - **Premium financing** — financing estimates and payment programs.
-- **State surplus-lines subjectivity forms** — the per-state forms that can block a bind. Ordinary
-  subjectivities ARE covered by `list_subjectivities` and `answer_subjectivity`.
 - **Changing policy dates on a bound quote.**
 - **Extracted document field values** — `get_extraction_status` reports how extraction is going, but
   the extracted values themselves, and cancelling a running extraction, are app-only.
@@ -1106,8 +1160,9 @@ merely a hidden group. What genuinely is not here:
   user's own profile, not adding people.
 - **Importing a risk from JSON.**
 
-Endorsement requests, policy cancellation, non-renewal, inspection compliance, loss history and
-wildfire orders ARE covered — in the `endorsements`, `policy`, `claims` and `hazard` toolsets.
+Endorsement requests, policy cancellation, non-renewal, inspection compliance, loss history,
+wildfire orders and the e-sign packet (including the per-state subjectivity forms) ARE covered — in
+the `endorsements`, `policy`, `claims`, `hazard` and `esign` toolsets.
 
 ## Reporting problems
 

@@ -5,7 +5,70 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.29] - 2026-08-18
+
+Agentic subjectivity collection: every subjectivity response type can now be answered through the
+MCP tools, and the e-sign packet — the one-signature path that clears the ACORDs, TRIA,
+supplemental, NKLL and per-state forms — can be generated and managed end-to-end.
+
+### Added
+
+- `answer_subjectivity` speaks every response type, not just text: `date` (YYYY-MM-DD) for DATE
+  items, `checkbox` for CHECKBOX items, the all-or-nothing `contact_full_name` / `contact_email` /
+  `contact_phone` trio for CONTACT_INFO items (bind readiness requires all three non-empty), and
+  `licensed_agent_email` for the SELECT_LICENSED_AGENT item — resolved against the agency's licensed
+  agents with an NPN on file and stored as the full agent record the app requires. A parameter that
+  does not match the subjectivity's response type is refused, because bind readiness only consults
+  the matching response field.
+- New opt-in `esign` toolset (`--toolsets esign` / `enable_toolset`):
+    - `get_state_subjectivity_fields` — the selected quote's per-state e-sign form census (names,
+      meanings, options incl. the CA/NY admitted-carrier lists, prefills from the quote, the stored
+      licensed agent and the insured contact), plus which open subjectivities the signed packet is
+      expected to satisfy.
+    - `generate_esign_packet` — generates the packet from a `field_values` object and returns the
+      licensed agent's signing URL, mirroring the app form's submit write-for-write: licensed-agent
+      subjectivity, policy-date updates (application + quote + EFFECTIVE_DATE subjectivity +
+      supplemental regeneration) when the dates changed, then the packet itself. Warns when no
+      insured contact is saved (Pathpoint then cannot email the insured their signing turn).
+    - `invalidate_esign_packet` — expires outstanding signing URLs and reopens e-signed
+      subjectivities, for the regeneration path when answers change.
+- `list_subjectivities` now shows each item's subjectivity type, and flags INSURED_PAY as "not
+  required for your agency" on non-insured-pay agencies (bind readiness skips it there).
+
+### Changed
+
+- `answer_subjectivity` also gates the `text` parameter: free text is refused on DATE/CHECKBOX items
+  (any textResponse falsely satisfies the server's readiness check without answering the question),
+  on SELECT_LICENSED_AGENT (it would replace the agent record the app requires), and on CONTACT_INFO
+  unless it is the full contact JSON.
+- `generate_esign_packet` answers the EFFECTIVE_DATE subjectivity on EVERY submit, not just on a
+  date change (signature completion never clears it); locks the insured signatory to the saved
+  insured contact (who receives the signing email); refuses future declination dates and values that
+  conflict with the coverage-inferred CA type of insurance; keeps numeric field values verbatim (no
+  exponent notation on documents); and records the licensed-agent selection in the activity feed,
+  like the app.
+- `invalidate_esign_packet` refuses risks with a bound quote — expiring signatures on an active
+  policy is post-bind damage the server would otherwise allow.
+- FILES completion is now exact: attached files (`responseFiles`) are fetched and counted the way
+  the server counts them, so a FILES item marked complete WITHOUT an attachment reads
+  `[marked-complete]` instead of complete — and `generate_esign_packet`'s satisfiable list and
+  EFFECTIVE_DATE idempotence see date/checkbox/e-sign answers too.
+- `generate_esign_packet` aborts when `updatePolicyDates` or `generateSupplementals` reports
+  `success: false` without a GraphQL error, instead of continuing to packet generation.
+- Re-selecting the already-stored licensed agent is a no-op (no duplicate activity-feed entries),
+  matching the web hook.
+- `check_bind_readiness` mirrors the server's INSURED_PAY skip for non-insured-pay agencies.
+- `get_insured_contact` / `set_insured_contact` accept any quote identifier — quote number, EID, or
+  UUID — resolved through the risk (the ownership check already did the lookup; callers no longer
+  need a separate round-trip just to learn the quote UUID).
+- `update_policy_dates` now also writes the selected quote's EFFECTIVE_DATE subjectivity date
+  response (the app dual-writes the same way; the server mutation alone never touches it), so a date
+  fix clears that bind requirement in the same call.
+- The embedded GraphQL schema is now generated as `gen/schema.graphql` and pulled into the binary
+  with `//go:embed`, instead of a ~1MB single-line Go string literal in `gen/schema_embedded.go`.
+  Regenerating it used to produce a one-line diff GitHub refuses to render ("diff too large to
+  view"); the SDL now diffs line-by-line in its own syntax. The embedded bytes are unchanged, so
+  `p schema list/describe` and `codegen.TestEmbeddedSchemaMatchesLiveSDL` behave exactly as before.
 
 ## [0.0.28] - 2026-08-14
 
