@@ -1,9 +1,12 @@
 ---
 name: Pathpoint
 description:
-    Manage Pathpoint risks, quotes, and submissions. Use when the user wants to add, update, or
-    delete quotes, browse recent risks, modify submission fields, clone a submission, search for
-    risks, or perform any operation on the Pathpoint insurance platform.
+    Manage Pathpoint risks, quotes, policies, and submissions. Use when the user wants to quote,
+    submit, or bind a risk; browse or search risks; modify submission fields; clone or renew a
+    submission; add, update, or delete quotes; attach quote documents; cancel, reinstate, or
+    non-renew a bound policy; confirm or decline an endorsement request; review or reject inspection
+    compliance; author bind subjectivities; or perform any operation on the Pathpoint insurance
+    platform.
 ---
 
 # Pathpoint Operations
@@ -33,20 +36,38 @@ Every operation follows the same shape:
 5. **Execute** — call the appropriate MCP tool.
 6. **Verify** — call `get_risk` again and report what changed.
 
+## Ops & BPO workflows
+
+Post-bind servicing lives in opt-in toolsets. If the user's job is operations rather than broking,
+load them all at once — `p mcp-serve --toolsets ops` in the MCP client config, or `enable_toolset`
+mid-session. Where each of the common ops jobs is documented below:
+
+| Job                               | Tools                                                 | Section                    |
+| --------------------------------- | ----------------------------------------------------- | -------------------------- |
+| Cancel a policy                   | `cancel_or_reinstate_policy`, `attach_quote_file`     | Cancellation & non-renewal |
+| Reinstate a policy                | `cancel_or_reinstate_policy`, `attach_quote_file`     | Cancellation & non-renewal |
+| Amend a bound policy's dates      | `amend_bound_policy_dates`                            | Changing policy dates      |
+| Amend a quoted risk's dates       | `update_policy_dates`                                 | Changing policy dates      |
+| Upload renewal quotes             | `renew_risk`, `quote_risk`, `attach_quote_file`       | Attaching quote documents  |
+| Add a bind requirement            | `create_subjectivity`                                 | Subjectivity authoring     |
+| Reject inspection compliance      | `mark_compliance_insufficient`                        | Inspections                |
+| Confirm or decline an endorsement | `confirm_endorsement`, `decline_endorsement_requests` | Endorsements               |
+
 ## Not every tool is loaded (`list_toolsets`, `enable_toolset`)
 
-Only the **core** group loads by default — everything in "The everyday loop" below. Seven specialist
+Only the **core** group loads by default — everything in "The everyday loop" below. Eight specialist
 groups are hidden from the tool list to keep the context payload small:
 
-| Group          | What is in it                                                                       |
-| -------------- | ----------------------------------------------------------------------------------- |
-| `endorsements` | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it |
-| `policy`       | Cancel/reinstate a policy, non-renewal, undo a mistaken bind, carrier inspections   |
-| `properties`   | Adding, duplicating and deleting buildings on a multi-location risk                 |
-| `admin`        | Agency-network and agency records (commissions), your own profile and sharing scope |
-| `claims`       | Loss-history rows on a building, and flagging a new claim against an issued quote   |
-| `hazard`       | Ordering third-party hazard data (wildfire scores) — internal ops/QA work           |
-| `esign`        | The e-sign packet on a selected quote: state field census, generate, invalidate     |
+| Group            | What is in it                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `endorsements`   | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it |
+| `policy`         | Cancel/reinstate a policy, non-renewal, undo a mistaken bind, carrier inspections   |
+| `properties`     | Adding, duplicating and deleting buildings on a multi-location risk                 |
+| `admin`          | Agency-network and agency records (commissions), your own profile and sharing scope |
+| `claims`         | Loss-history rows on a building, and flagging a new claim against an issued quote   |
+| `hazard`         | Ordering third-party hazard data (wildfire scores) — internal ops/QA work           |
+| `subjectivities` | Authoring a quote's bind requirements — add, edit, delete, bulk-accept              |
+| `esign`          | The e-sign packet on a selected quote: state field census, generate, invalidate     |
 
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
@@ -701,7 +722,7 @@ Only call `delete_quote` after an explicit "yes". Never default to delete when t
 The undo for `request_bind` — use when the client backs out or the wrong quote was requested. Always
 collect a reason (it goes to the Pathpoint team) and confirm before calling.
 
-### Changing policy dates (`update_policy_dates`)
+### Changing policy dates (`update_policy_dates`, `amend_bound_policy_dates`)
 
 The fix when a quoted risk's effective date has slipped — the classic blocker between "quote
 selected" and "bind requested". Writes the new effective/expiration dates on both the application
@@ -724,7 +745,80 @@ dates along with the quote's, so pointing it at a non-selected quote would leave
 the quote being bound disagreeing. If nothing is selected yet, `select_quote` first.
 `quote_identifier` is accepted as confirmation but must name the selected quote. Bound quotes are
 refused outright: those dates belong to an active policy, and changing them is endorsement work
-(`create_endorsement_request`), not a pre-bind fix.
+(`create_endorsement_request`), not a pre-bind fix — the refusal names `amend_bound_policy_dates`
+(policy toolset) as the in-place correction path if that is what is actually needed.
+
+**`amend_bound_policy_dates`** (policy toolset) is that path — the exact inverse of
+`update_policy_dates`: it only accepts a **BOUND** quote, where the core tool only accepts a
+non-bound one. It sends the IDENTICAL `updatePolicyDates` mutation, so it requires **ordinary
+risk/quote access — the same authorization as `update_policy_dates`, with no additional admin
+permission enforced**. The controls on it are the opt-in `policy` toolset and the required `reason`.
+It exists because Pathpoint's ops team corrects a bound policy's recorded dates in place every day,
+today in a third-party Retool app, and Retool does it worse: it writes only the EAV submission
+choice (`setUserChoice`) and never the quote row, so every Retool date amend leaves the quote and
+the application disagreeing. This tool writes both via the same mutation, so it cannot introduce
+that disagreement. It requires a `reason`, written verbatim to the risk's activity feed as the audit
+trail — an unexplained date change on an active policy must never happen silently, and that entry is
+permanent and visible there to the owning agency and to Pathpoint staff, same as `add_risk_note`.
+The product-correct fix for a real mid-term date change is still an endorsement
+(`create_endorsement_request`); this tool is for correcting the record in place on a policy that is
+already bound, and it says so every time, along with what it does not fix: it does **not** re-rate
+(premium and terms are unchanged); policy documents, the binder, and ACORDs are **not** regenerated
+and keep the old dates; the quote's **grace period** is recalculated, which has billing implications
+on an active policy, and Ascend invoicing is not touched; and the **carrier** is not told — this
+changes Pathpoint's records only (except Vave).
+
+One limitation worth knowing: both policy-dates tools resolve their target exclusively through the
+risk's `selectedQuote` (`resolvePolicyDatesQuote`), and that never changes just because the quote
+later binds. A policy whose risk no longer reports that bound quote as selected — a later rebind on
+a sibling quote, a cleared selection — cannot be corrected with `amend_bound_policy_dates` at all,
+and the refusal it gets back names `select_quote`, which is not a sensible instruction for a policy
+already in force. The common case is unaffected: a bound quote is normally still the risk's selected
+one.
+
+## Subjectivity authoring (subjectivities toolset)
+
+Load with `enable_toolset` — these four tools are hidden by default. Everything above is reading and
+answering the bind requirements a quote already has; these change what the requirements ARE — the
+underwriter/ops side that Retool's Quoting-BT app has had all along.
+
+- **`create_subjectivity`** adds a new bind requirement to a quote — admin only (requires
+  `GLOBAL_ACCESS_PROTECTED_RESOURCE`). Takes `risk_id`, `quote_id` (UUID/EID/quote number), `title`,
+  `description`, `response_type`, and `lifecycle_stage`. "Binding subjectivity" / "bind requirement"
+  means `lifecycle_stage: PRE_BIND` — the enum has no `BINDING` value, only `PRE_BIND` (blocks
+  `request_bind`) and `PRE_ISSUANCE` (blocks issuance instead). A created subjectivity has no
+  `SubjectivityType` — that field is the app's internal routing for special items (AUDIT_CONTACT,
+  SELECT_LICENSED_AGENT, INSURED_PAY, and the rest) — so bind readiness and `list_subjectivities`
+  treat it as a plain item with none of that special handling. Answer it afterward with
+  `answer_subjectivity` (TEXT/DATE/CHECKBOX/CONTACT_INFO) or `upload_subjectivity_file`
+  (FILES/FILES_AND_TEXT).
+- **`delete_subjectivity`** permanently removes one — admin only, same permission as create. This
+  cannot be undone from the app: the requirement and any answer already saved on it are both gone.
+  Identify it by EID or an unambiguous title fragment, same resolution as `answer_subjectivity`.
+  Always confirm with the user before calling it.
+- **`update_subjectivity`** edits title, description, `response_type`, `lifecycle_stage`,
+  `subjectivity_type`, or the underwriter comment — never the answer. It refuses answer-shaped
+  arguments outright (`text`, `date`, `checkbox`, the `contact_full_name`/`contact_email`/
+  `contact_phone` trio, `licensed_agent_email`, `mark_complete`, files) and points at
+  `answer_subjectivity` / `upload_subjectivity_file` / `accept_subjectivities` instead, and refuses
+  a call that changes nothing. **Changing `response_type` on a subjectivity that already has a saved
+  answer strands that answer** — bind readiness only consults the field matching the CURRENT type,
+  so the old answer becomes invisible the moment the type changes; the tool warns when this happens
+  and the item needs re-answering. Unlike create/delete, **this is NOT admin-gated server-side** —
+  it's only an ownership check (`@ResourceCheck(BySubjectivity)`), so any session that can see the
+  risk can retitle or restage one of its bind requirements.
+- **`accept_subjectivities`** bulk-stamps `acceptedAt` on outstanding requirements
+  (`bulkUpdateSubjectivities`), also **not admin-gated server-side**
+  (`@ResourceCheck(ByCustomFunction)`). By default it only accepts items that already have an
+  answer, on the selected quote (or every quote, if none is selected) — **accepting an unanswered
+  item WAIVES it rather than confirming it was satisfied**, so that never happens silently; pass
+  `include_unanswered: true` to do it anyway. `quote_identifier` scopes to one quote; `identifiers`
+  (an array of EIDs or title fragments) takes priority over `quote_identifier`, but every one named
+  must be on the SAME quote — a mixed-quote list (and the every-quote fall-through, when more than
+  one of those quotes has something outstanding) is refused before anything is sent, since
+  `bulkUpdateSubjectivities` rejects a batch spanning more than one quote wholesale. Per-item
+  failures come back as a 200 with no GraphQL errors, so a partial failure is reported as an error
+  result even when some items succeeded — check the message for which ones actually went through.
 
 ## The e-sign packet (esign toolset)
 
@@ -864,11 +958,14 @@ document. Admin-only: the underlying mutation requires `GLOBAL_ACCESS_PROTECTED_
 
 | Parameter      | Required | Notes                                                                                                                                                                                                                                                 |
 | -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `quote_id`     | yes      | Quote UUID or EID. A quote number is not accepted — resolve it with `get_quote` first                                                                                                                                                                 |
+| `quote_id`     | one of\* | Quote UUID or EID. A quote number is not accepted — resolve it with `get_quote` first                                                                                                                                                                 |
+| `quote_ids`    | one of\* | Array of quote UUIDs/EIDs to attach the SAME file to in one upload — the renewal-quote case, one letter across several option quotes. Duplicates are deduped; an empty array is refused                                                               |
 | `file_path`    | yes      | Absolute path of the local file                                                                                                                                                                                                                       |
 | `file_type`    | yes      | `APPLICATION`, `COVER_LETTER`, `POLICY_DOC`, `QUOTE_LETTER`, `SIGNED_APP_FORM`, `SUPPLEMENTAL_DOC`, `BINDER`, `INVOICE`, `LOSS_RUNS_DOC`, `NOTICE_OF_POLICY_CANCELLATION`, `NOTICE_OF_REINSTATEMENT`, `CANCELLATION_INVOICE`, `REINSTATEMENT_INVOICE` |
 | `file_name`    | no       | Override the stored name (defaults to the file's base name)                                                                                                                                                                                           |
 | `confirm_prod` | on prod  | `true` is required when the session points at prod                                                                                                                                                                                                    |
+
+\* Pass exactly one of `quote_id` or `quote_ids`, never both.
 
 **The bind unblock.** Manual quotes created with `quote_risk` never auto-generate a quote letter, so
 `request_bind` hard-fails with "Quote letter is not ready" (`QUOTE_FILE_MISSING`) until one exists.
@@ -881,11 +978,24 @@ quote_risk → attach_quote_file (QUOTE_LETTER) → check_bind_readiness → req
 Re-attaching replaces that slot — the previous file stays on the risk, only the quote's pointer
 moves. Verify with `get_quote_documents`.
 
+**Renewal quotes (SYS).** The BPO team's renewal workflow produces several option quotes on one risk
+that all share a single carrier quote letter — the same document, several targets. Use `quote_ids`
+rather than calling `attach_quote_file` once per quote: the file is uploaded once and the same S3
+object is attached to every id in the array.
+
+```
+renew_risk → quote_risk (per option) → attach_quote_file (QUOTE_LETTER, quote_ids=[...]) → check_bind_readiness
+```
+
+The file uploads once regardless of how many ids are passed. Every quote gets its own
+`addFileToQuote` call, and a failure on one does not stop the rest — the result names which quotes
+attached and which did not, so a partial failure is never reported as a plain success.
+
 ## After the bind: servicing a policy (policy toolset)
 
-Load with `enable_toolset` — these six tools are hidden by default.
+Load with `enable_toolset` — these eight tools are hidden by default.
 
-### Inspections (`get_inspection_status`, `upload_proof_of_inspection`)
+### Inspections (`get_inspection_status`, `upload_proof_of_inspection`, `mark_compliance_insufficient`)
 
 Inspection is a mandatory timeline stage between Payment and Policy for any policy bound on a quote
 carrying an inspection fee.
@@ -906,6 +1016,22 @@ carrying an inspection fee.
       byte-identical document is already attached.
     - **On a timeout the outcome is UNKNOWN, not failed.** Re-run `get_inspection_status` first;
       only re-send if the documents are genuinely absent. Never retry blindly.
+- `mark_compliance_insufficient` — the ops/compliance **rejection** of a submitted
+  proof-of-compliance packet. Moves the risk from `INSPECTION_COMPLIANCE_IN_REVIEW` back to
+  `INSPECTION_COMPLIANCE_REQUIRED` and pushes `Compliance Insufficient` to Novidea. `comment` is
+  what the broker/agent reads next to learn what still needs fixing, so be specific. Calling it
+  twice in a row records nothing the second time — the server only writes a new activity when the
+  latest inspection activity is a different type — and this tool reports that up front as a success
+  rather than claiming a fresh rejection. Admin-only (`GLOBAL_ACCESS_PROTECTED_RESOURCE`). The web
+  app only shows this button to QA-flagged users (`viewer.qa`), a UI condition unrelated to the
+  API's permission check — so an ops session with admin access can do this through the tool even
+  where the app hides the button.
+    - **Only meaningful in `INSPECTION_COMPLIANCE_IN_REVIEW`** — a packet must actually be submitted
+      and awaiting review; on any other status (nothing submitted yet, already cleared, still
+      processing, etc.) this refuses instead of writing.
+    - **A bundle PARENT id is refused, not expanded** (the same trap `upload_proof_of_inspection`
+      warns about above). If the risk's inspections are all keyed to different (child) risk ids,
+      this tool names those child ids in the refusal — pass one of them instead of the parent.
 
 ### Cancellation & non-renewal (`cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`)
 
@@ -931,6 +1057,10 @@ carrier except Vave, these tools are the only in-product way to end a policy at 
 Identify the policy with `risk_id`; the single bound quote is used by default, and
 `quote_identifier` picks one when a risk has several.
 
+The cancellation/reinstatement documents (`NOTICE_OF_POLICY_CANCELLATION`, `CANCELLATION_INVOICE`,
+`NOTICE_OF_REINSTATEMENT`, `REINSTATEMENT_INVOICE`) are attached with `attach_quote_file` — see
+_Attaching quote documents_.
+
 ### Undoing a mistaken bind (`undo_bind`)
 
 Admin only (`GLOBAL_ACCESS_PROTECTED_RESOURCE`). The correction for a bind that should never have
@@ -949,6 +1079,8 @@ Two boundaries to respect:
 
 Same targeting as the other policy tools: `risk_id`, with the single bound quote picked by default.
 The tool shows the state before and after so what changed is on the record.
+
+## Endorsements (endorsements toolset)
 
 Bound policies only. Load with `enable_toolset` — these six tools are hidden by default.
 

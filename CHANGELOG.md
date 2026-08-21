@@ -5,6 +5,103 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.32] - 2026-08-20
+
+Fixes the single largest source of failed submission writes: a yes/no answer written the way a
+person says it — "yes" — was forwarded to the server unconverted and rejected, taking every other
+change in the same call down with it.
+
+### Fixed
+
+- Field values are now coerced to the store type of the EAV attribute behind them before
+  `setUserChoice` sees them. `modify_submission` used to forward the model's value untouched, so
+  `"yes"` on a yes/no question reached a `BOOLEAN` attribute as a string and the server rejected it
+  with `value for store bool could not be converted to bool in toStoreValue` — rolling back the
+  **whole** batch, so one mistyped field silently discarded every other change sent with it. This
+  accounted for 1054 of the 1122 rejected writes on that mutation in production over the last 30
+  days, and because the server error names neither the field nor the expected type, an agent had
+  nothing to correct against and simply retried: 1052 of them landed on a single day. The gate runs
+  after every component-specific validator, so no branch can bypass it, and it reads the type from
+  the `ATTRIBUTE_TYPE` the choice id already carries — no extra round trip. Values that already
+  cross the wire correctly are passed through unchanged.
+    - `BOOLEAN` accepts a real boolean and normalizes
+      `true`/`false`/`yes`/`no`/`y`/`n`/`t`/`f`/`1`/`0`.
+    - `BIGINT` and `FLOAT` accept a numeric string, including one written with `$` or grouped
+      thousands (`"$5,000"` → `5000`, and `"$5,000.00"` is still a whole number). A comma that is
+      not a thousands separator is refused rather than stripped — `"1234,56"` would otherwise store
+      as `123456`, a silent 100x.
+    - A fractional value for a `BIGINT` is refused rather than truncated, whether it arrives as a
+      string or as a number. This one is not a rejected write being fixed but a silent wrong one:
+      the server does not reject `1234.56` on a whole-number attribute, it stores `1234`, so the
+      write "succeeds" and the risk carries a figure nobody entered. Percent cells already worked
+      this way; every whole-number field does now.
+    - A `BIGINT` beyond 2^53 is refused. JSON has no integer type, so every number arrives as a
+      float64: `"9007199254740993"` was already being sent as `…992`, and converting a value past
+      the int64 range is undefined in Go. Both quietly substitute a different number.
+    - `STRING` renders a stray boolean or number as text.
+    - Anything genuinely ambiguous is refused **here**, with a message naming the field and what it
+      accepts, instead of becoming a server error the caller can only retry.
+- An option match on a select field now returns the option's own value rather than the caller's. The
+  match compares stringified values so it deliberately spans types, which meant the string `"true"`
+  matched the boolean option `true` and the string was sent on. This is why the bug looked
+  intermittent: `"yes"` stored fine on a yes/no field that shipped options and failed on one that
+  did not.
+
+## [0.0.31] - 2026-08-19
+
+Closes the operations and BPO workflows this branch has been building toward: authoring bind
+requirements, rejecting inspection compliance, correcting a bound policy's dates in place, and
+attaching one renewal quote letter to several option quotes at once — plus a single flag that loads
+all of it for a team whose entire day is post-bind servicing, not broking.
+
+### Added
+
+- New `subjectivities` toolset: `create_subjectivity`, `update_subjectivity`, `delete_subjectivity`
+  and `accept_subjectivities` author the bind requirements on a quote rather than answer them — the
+  underwriter/ops side Retool's Quoting-BT app has always had. `create_subjectivity` and
+  `delete_subjectivity` require admin access (`GLOBAL_ACCESS_PROTECTED_RESOURCE`);
+  `update_subjectivity` and `accept_subjectivities` are gated only by ownership/resource checks and
+  the opt-in toolset, so any session that can see the risk can call them. `accept_subjectivities`
+  refuses to silently waive an unanswered item — accepting one without a saved answer is a waiver,
+  not a confirmation it was satisfied — unless `include_unanswered: true` is passed.
+- `mark_compliance_insufficient` (`policy` toolset) — ops/compliance's rejection of a submitted
+  inspection-compliance packet. Moves the risk back to `INSPECTION_COMPLIANCE_REQUIRED`, pushes
+  `Compliance Insufficient` to Novidea, and logs the reviewer's `comment` as what the broker/agent
+  reads next to learn what still needs fixing. Calling it twice in a row records nothing server-side
+  (the resolver only writes when the latest inspection activity is a different type), and the tool
+  detects and reports that up front rather than claiming a fresh rejection.
+- `amend_bound_policy_dates` (`policy` toolset) — corrects a BOUND policy's recorded
+  effective/expiration dates in place, the mirror image of `update_policy_dates` (which refuses
+  bound quotes). Sends the identical `updatePolicyDates` mutation, so it requires ordinary
+  risk/quote access — the same authorization as `update_policy_dates`, with no additional admin
+  permission enforced; the controls on it are the opt-in `policy` toolset and the required `reason`,
+  written verbatim to the risk's activity feed as the permanent audit trail for a date change on an
+  active policy. Exists because ops already corrects bound policy dates in place every day, in a
+  third-party Retool app that writes only the EAV submission choice and leaves the quote row
+  disagreeing with the application; this tool writes both via the same mutation, so it cannot
+  introduce that disagreement.
+- `--toolsets ops` (also `enable_toolset("ops")`) loads `policy`, `endorsements` and
+  `subjectivities` together in one flag. The toolset cuts follow a broker's path from intake to
+  bind, which buries everything an operations or BPO session needs behind three group names it has
+  no reason to already know. A profile is not a new permission — it only expands to groups that
+  already exist — just a shortcut to the whole job.
+- `attach_quote_file` accepts `quote_ids` (an array) alongside the existing `quote_id`, uploading
+  one file once and attaching it to every listed quote — the BPO renewal case, where several option
+  quotes on one risk share a single carrier quote letter. A failure on one quote does not stop the
+  rest; the result names which quotes attached and which did not, so a partial attach is never
+  reported as a plain success.
+
+### Changed
+
+- `update_policy_dates`'s refusal on a bound quote now names `amend_bound_policy_dates` as the
+  in-place correction path, instead of leaving the caller with "this is endorsement work" and no
+  next step.
+- The bundled skill's frontmatter description now names the post-bind actions it already documents —
+  cancel, reinstate or non-renew a policy; confirm or decline an endorsement; review or reject
+  inspection compliance; author bind subjectivities — so it is selected for an ops question instead
+  of only a broker one. A new "Ops & BPO workflows" section routes each common ops job to the tools
+  and section that cover it.
+
 ## [0.0.30] - 2026-08-19
 
 Fixes the Claude Desktop / claude.ai plugin import. Every release now publishes
