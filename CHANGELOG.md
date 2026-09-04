@@ -5,6 +5,70 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.33] - 2026-09-04
+
+Catches `p` up with three weeks of server changes and closes two ways a single answer or a single
+flag could take a whole write down. Also ships the inspection QA tools merged in August under this
+heading but never cut as a release: testers can put a bound risk into any inspection state on local,
+demo, and review sessions without touching the prod API — status is written through the existing ops
+mutations, and the inspections row is still created by the real `request_bind` path.
+
+### Added
+
+- Inspections QA (non-prod): `update_inspection_status` and `upload_inspection_file` MCP tools wrap
+  the existing ops `updateInspectionStatus` / `uploadInspectionFile` mutations — no API, schema,
+  web, or DB change. Both refuse before any network call unless the session endpoint is localhost /
+  `*.localhost` / `*.pathpoint.dev` (demo + review); prod and unknown URLs get a "QA tool, non-prod
+  only" message, and `confirm_prod` cannot unblock them. Other tools stay fully prod-capable.
+  `update_inspection_status` accepts the six Go-visible inspection activities
+  (`INSPECTION_PROCESSED` is rejected client-side). `INSPECTION_COMPLIANCE_REQUIRED` pushes to the
+  Novidea sandbox on test envs; same-status calls are no-ops. A broker session surfaces the
+  `GLOBAL_ACCESS_PROTECTED_RESOURCE` permission error. Creation is the real bind path, documented in
+  SKILL.md ("Inspections (QA, non-prod)"): `quote_risk` with `inspection_fee > 0` then
+  `request_bind` so the inspections row is born the same way as prod.
+
+### Fixed
+
+- Date answers are coerced to `YYYY-MM-DD` before `setUserChoice` sees them — the same gate 0.0.32
+  added for yes/no answers. A unix epoch written onto a date question reached the server as a number
+  and was refused with `value for store date could not be converted`, rolling back every other
+  change in the same `modify_submission` call (ISSUE-4076). Every spelling Postgres already accepted
+  on the way in (`06/15/2024`, `June 15, 2024`, `2024-06-15T09:30:00Z`, …) still works. A
+  whole-number epoch is accepted only when it lands exactly on UTC midnight; one carrying a time of
+  day names a different calendar day depending on where it was written, so it is refused with the
+  field named rather than stored as a day nobody chose. (PAR-5723)
+- A `p` built against the current API panicked on start — every command, not just the one at fault —
+  once the schema gained a mutation whose GraphQL argument is named `fields`: codegen registered
+  `--fields` for the argument and again for the built-in selection-set override, and `pflag` refused
+  the redefinition (`saveMTAFormDraft flag redefined: fields`). Generated commands now resolve each
+  argument's flag name at registration against the command's own flags, Cobra's `--help`, and the
+  inherited `--endpoint` / `--timeout` / `--yes` / `--confirm-prod`; a colliding argument gets an
+  `-input` suffix (`--fields-input`, labelled "GraphQL argument fields" in `--help`) while
+  `--fields` stays the selection set. The GraphQL variable keeps its real name, so the request sent
+  is unchanged. (PAR-5735)
+- Colorado's Statement of Diligent Effort is on Rev. 02/2026, which asks for two declinations
+  instead of three. `get_state_subjectivity_fields` no longer lists — and `generate_esign_packet` no
+  longer expects — the declination 3 carrier, date, underwriter name, phone, or cause for a CO
+  quote, matching the web form and the new Anvil cast. (PAR-5703)
+- `get_state_subjectivity_fields` and `generate_esign_packet` now count
+  `COTERIE_SIGNED_ACKNOWLEDGEMENTS` among the open subjectivities a completed packet clears. The
+  server has cleared it on signature since Coterie acknowledgements shipped, but `p`'s satisfiable
+  list was never updated, so the packet report under-promised on Coterie quotes.
+
+### Changed
+
+- A `@ResourceCheck` denial no longer says "that record exists but this account cannot see it". The
+  server fails closed on an id it cannot resolve, so the one message covers both a record that
+  belongs to someone else and one that does not exist (deleted, or a wrong or truncated id). The
+  hint now names both, and points at `search_risk` / `list_risks` to check the id before suggesting
+  `share_risk`. (PAR-5715)
+- Embedded schema and the generated `p query` / `p mutation` commands are regenerated against the
+  current API: MTA form drafts and policy-term overrides (`getMTAFormDraft`, `saveMTAFormDraft`,
+  `getMTAPolicyTermOverride`, `setMTAPolicyTermOverride`), the guided-session resume prompt
+  (`resumableGuidedClassificationSession`), the new `PackageVacantBuildingRiskInput`, `yearFounded`
+  on monoline property, and a nullable `Quote.manualFiles`. The deprecated
+  `supplementalsQueuedServerSide` argument is gone from the submit mutations (PAR-5721).
+
 ## [0.0.32] - 2026-08-20
 
 Fixes the single largest source of failed submission writes: a yes/no answer written the way a

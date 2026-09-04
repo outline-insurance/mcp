@@ -58,16 +58,16 @@ mid-session. Where each of the common ops jobs is documented below:
 Only the **core** group loads by default — everything in "The everyday loop" below. Eight specialist
 groups are hidden from the tool list to keep the context payload small:
 
-| Group            | What is in it                                                                       |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| `endorsements`   | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it |
-| `policy`         | Cancel/reinstate a policy, non-renewal, undo a mistaken bind, carrier inspections   |
-| `properties`     | Adding, duplicating and deleting buildings on a multi-location risk                 |
-| `admin`          | Agency-network and agency records (commissions), your own profile and sharing scope |
-| `claims`         | Loss-history rows on a building, and flagging a new claim against an issued quote   |
-| `hazard`         | Ordering third-party hazard data (wildfire scores) — internal ops/QA work           |
-| `subjectivities` | Authoring a quote's bind requirements — add, edit, delete, bulk-accept              |
-| `esign`          | The e-sign packet on a selected quote: state field census, generate, invalidate     |
+| Group            | What is in it                                                                                                         |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `endorsements`   | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it                                   |
+| `policy`         | Cancel/reinstate a policy, non-renewal, undo a mistaken bind, carrier inspections, and QA inspection setup (non-prod) |
+| `properties`     | Adding, duplicating and deleting buildings on a multi-location risk                                                   |
+| `admin`          | Agency-network and agency records (commissions), your own profile and sharing scope                                   |
+| `claims`         | Loss-history rows on a building, and flagging a new claim against an issued quote                                     |
+| `hazard`         | Ordering third-party hazard data (wildfire scores) — internal ops/QA work                                             |
+| `subjectivities` | Authoring a quote's bind requirements — add, edit, delete, bulk-accept                                                |
+| `esign`          | The e-sign packet on a selected quote: state field census, generate, invalidate                                       |
 
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
@@ -993,7 +993,7 @@ attached and which did not, so a partial failure is never reported as a plain su
 
 ## After the bind: servicing a policy (policy toolset)
 
-Load with `enable_toolset` — these eight tools are hidden by default.
+Load with `enable_toolset` — these tools are hidden by default.
 
 ### Inspections (`get_inspection_status`, `upload_proof_of_inspection`, `mark_compliance_insufficient`)
 
@@ -1032,6 +1032,63 @@ carrying an inspection fee.
     - **A bundle PARENT id is refused, not expanded** (the same trap `upload_proof_of_inspection`
       warns about above). If the risk's inspections are all keyed to different (child) risk ids,
       this tool names those child ids in the refusal — pass one of them instead of the parent.
+
+### Inspections (QA, non-prod)
+
+From-scratch setup for a risk that is in any inspection state, on **local / review apps / demo
+only**. The prod API is unchanged; these tools refuse against a prod session before any network
+call. Sign in with a QA account (e.g. `mferguson@pathpoint.com`), not a `+broker` variant.
+
+The inspections row is born in exactly one place: `request_bind`, gated on `inspection_fee > 0` (the
+same `Boolean(quote.inspectionFee)` check as prod). Status then arrives from Novidea and documents
+from Heron — an external loop we cannot and should not simulate. Most inspection UI needs that row
+(`Risk.inspectionStatuses` iterates it), so without it InspectionPage shows "No inspection needed"
+and the Documents Hub Inspections tab is empty, even if a status-only write flips the chip. Create
+the row via the real path, then set status.
+
+**Chain** (one conversation: "get me a new quote with an inspection in compliance-required"):
+
+1. `create_risk` — property or GL coverage (`cglV2`, `monolinePropertyV2`, a `package*` product) for
+   realism. Fill with `get_submission_questions` / `modify_submission`, then `submit_risk`.
+2. `quote_risk` with `inspection_fee` **greater than 0** — that is the exact prod gate. Zero or
+   omitted means no inspections row at bind.
+3. Manual quotes never auto-generate a quote letter. Attach one with `attach_quote_file`
+   (`file_type: QUOTE_LETTER`) or `request_bind` fails `QUOTE_FILE_MISSING`.
+4. `select_quote`, then clear pre-bind subjectivities (`check_bind_readiness`). Use the typed
+   `answer_subjectivity` parameters — `date`, the `contact_*` trio, `licensed_agent_email` — never
+   raw `text` on SELECT_LICENSED_AGENT (that stores an email string the subjectivities page cannot
+   parse). FILES items need `upload_subjectivity_file`. Then `request_bind`. That last call runs the
+   actual prod kickoff — inspections row plus `INSPECTION_PROCESSING`. The risk landing in
+   `BIND_REQUESTED` is prod-faithful. For a bundle, subsequent inspection writes take the
+   **coverage/child** risk id, not the parent.
+5. `enable_toolset` `policy` if the QA tools are hidden, then `update_inspection_status`.
+
+**Setting status (`update_inspection_status`).** Params: `risk_id`, `status`, optional `comment`.
+Settable values: `INSPECTION_PROCESSING`, `INSPECTION_COMPLIANCE_REQUIRED`,
+`INSPECTION_COMPLIANCE_IN_REVIEW`, `INSPECTION_CLEARED`, `INSPECTION_NON_PRODUCTIVE`,
+`INSPECTION_DNOC`. `INSPECTION_PROCESSED` is rejected — Go-side reads omit it, and prod only writes
+it paired inside the Heron worker.
+
+- Only `INSPECTION_COMPLIANCE_REQUIRED` / `INSPECTION_COMPLIANCE_IN_REVIEW` derive risk statuses
+  (`COMPLIANCE_REQUIRED` / `COMPLIANCE_IN_REVIEW`, above ISSUED). Only the former is a dashboard
+  action item. The other four are annotations.
+- `COMPLIANCE_REQUIRED` pushes to Novidea; local, review, and demo all point Novidea at the pcsb
+  Salesforce sandbox, so the push is inert (may log a Sentry error if the risk has no sandbox
+  application — acceptable).
+- Same-status calls are no-ops (the server dedupes).
+- A broker session gets a permission error (`GLOBAL_ACCESS_PROTECTED_RESOURCE`), not a silent
+  failure. An unquoted / unselected risk comes back "No selected quote found".
+- Verify each state with `get_inspection_status` (chip, InspectionPage, `Risk.inspectionStatuses`).
+  After `INSPECTION_COMPLIANCE_REQUIRED`, `get_action_items` should show the Compliance-required
+  card.
+
+**Ops documents (`upload_inspection_file`).** Optional; use when the Documents Hub Inspections tab
+needs content. Wraps the ops `uploadInspectionFile` (`INSPECTION_REPORT` / `INSPECTION_LETTER` into
+`inspections_files`). Requires the inspection row. Same non-prod allowlist and QA permission.
+Brokers submit proof of compliance with `upload_proof_of_inspection`, not this tool.
+
+Do not invent a create-inspection mutation or fake Novidea. File-driven agent flow
+(`uploadProofOfInspection` from the app) stays app-only.
 
 ### Cancellation & non-renewal (`cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`)
 
