@@ -4,9 +4,9 @@ description:
     Manage Pathpoint risks, quotes, policies, and submissions. Use when the user wants to quote,
     submit, or bind a risk; browse or search risks; modify submission fields; clone or renew a
     submission; add, update, or delete quotes; attach quote documents; cancel, reinstate, or
-    non-renew a bound policy; confirm or decline an endorsement request; review or reject inspection
-    compliance; author bind subjectivities; or perform any operation on the Pathpoint insurance
-    platform.
+    non-renew a bound policy; bind or issue a quote; create a Vave mid-term adjustment; confirm or
+    decline an endorsement request; review or reject inspection compliance; author bind
+    subjectivities; or perform any operation on the Pathpoint insurance platform.
 ---
 
 # Pathpoint Operations
@@ -40,34 +40,43 @@ Every operation follows the same shape:
 
 Post-bind servicing lives in opt-in toolsets. If the user's job is operations rather than broking,
 load them all at once — `p mcp-serve --toolsets ops` in the MCP client config, or `enable_toolset`
-mid-session. Where each of the common ops jobs is documented below:
+mid-session. Where each of the common ops jobs is documented below.
 
-| Job                               | Tools                                                 | Section                    |
-| --------------------------------- | ----------------------------------------------------- | -------------------------- |
-| Cancel a policy                   | `cancel_or_reinstate_policy`, `attach_quote_file`     | Cancellation & non-renewal |
-| Reinstate a policy                | `cancel_or_reinstate_policy`, `attach_quote_file`     | Cancellation & non-renewal |
-| Amend a bound policy's dates      | `amend_bound_policy_dates`                            | Changing policy dates      |
-| Amend a quoted risk's dates       | `update_policy_dates`                                 | Changing policy dates      |
-| Upload renewal quotes             | `renew_risk`, `quote_risk`, `attach_quote_file`       | Attaching quote documents  |
-| Add a bind requirement            | `create_subjectivity`                                 | Subjectivity authoring     |
-| Reject inspection compliance      | `mark_compliance_insufficient`                        | Inspections                |
-| Confirm or decline an endorsement | `confirm_endorsement`, `decline_endorsement_requests` | Endorsements               |
+QA bind/MTA tools never run in prod (they hard-refuse), so they are **not** on the `ops` profile.
+Testers on local / demo / review load `--toolsets qa` (or `enable_toolset qa`) instead.
+
+| Job                               | Tools                                                 | Section                           |
+| --------------------------------- | ----------------------------------------------------- | --------------------------------- |
+| Cancel a policy                   | `cancel_or_reinstate_policy`, `attach_quote_file`     | Cancellation & non-renewal        |
+| Reinstate a policy                | `cancel_or_reinstate_policy`, `attach_quote_file`     | Cancellation & non-renewal        |
+| Amend a bound policy's dates      | `amend_bound_policy_dates`                            | Changing policy dates             |
+| Amend a quoted risk's dates       | `update_policy_dates`                                 | Changing policy dates             |
+| Upload renewal quotes             | `renew_risk`, `quote_risk`, `attach_quote_file`       | Attaching quote documents         |
+| Add a bind requirement            | `create_subjectivity`                                 | Subjectivity authoring            |
+| Reject inspection compliance      | `mark_compliance_insufficient`                        | Inspections                       |
+| Confirm or decline an endorsement | `confirm_endorsement`, `decline_endorsement_requests` | Endorsements                      |
+| Bind or issue a quoted policy     | `bind_or_issue_policy` (`qa` / `mta`, not `ops`)      | Binding or issuing (QA, non-prod) |
+| Start a Vave mid-term adjustment  | `create_mta_submission`, `dry_run_mta` (`qa` / `mta`) | Vave MTA (QA, non-prod)           |
 
 ## Not every tool is loaded (`list_toolsets`, `enable_toolset`)
 
-Only the **core** group loads by default — everything in "The everyday loop" below. Eight specialist
+Only the **core** group loads by default — everything in "The everyday loop" below. Nine specialist
 groups are hidden from the tool list to keep the context payload small:
 
-| Group            | What is in it                                                                                                         |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `endorsements`   | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it                                   |
-| `policy`         | Cancel/reinstate a policy, non-renewal, undo a mistaken bind, carrier inspections, and QA inspection setup (non-prod) |
-| `properties`     | Adding, duplicating and deleting buildings on a multi-location risk                                                   |
-| `admin`          | Agency-network and agency records (commissions), your own profile and sharing scope                                   |
-| `claims`         | Loss-history rows on a building, and flagging a new claim against an issued quote                                     |
-| `hazard`         | Ordering third-party hazard data (wildfire scores) — internal ops/QA work                                             |
-| `subjectivities` | Authoring a quote's bind requirements — add, edit, delete, bulk-accept                                                |
-| `esign`          | The e-sign packet on a selected quote: state field census, generate, invalidate                                       |
+| Group            | What is in it                                                                           |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `endorsements`   | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it     |
+| `policy`         | Cancel/reinstate, non-renewal, undo bind, carrier inspections, QA inspection setup      |
+| `mta`            | QA / non-prod: BIND or ISSUE a quote, then Vave mid-term adjustments (create + dry-run) |
+| `properties`     | Adding, duplicating and deleting buildings on a multi-location risk                     |
+| `admin`          | Agency-network and agency records (commissions), your own profile and sharing scope     |
+| `claims`         | Loss-history rows on a building, and flagging a new claim against an issued quote       |
+| `hazard`         | Ordering third-party hazard data (wildfire scores) — internal ops/QA work               |
+| `subjectivities` | Authoring a quote's bind requirements — add, edit, delete, bulk-accept                  |
+| `esign`          | The e-sign packet on a selected quote: state field census, generate, invalidate         |
+
+Profiles (one flag for a whole job): `ops` loads `policy`, `endorsements`, `subjectivities`; `qa`
+loads `mta` (BIND/ISSUE + Vave MTA, local/demo/review only).
 
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
@@ -1118,6 +1127,37 @@ The cancellation/reinstatement documents (`NOTICE_OF_POLICY_CANCELLATION`, `CANC
 `NOTICE_OF_REINSTATEMENT`, `REINSTATEMENT_INVOICE`) are attached with `attach_quote_file` — see
 _Attaching quote documents_.
 
+### Binding or issuing (QA, non-prod)
+
+Load with `enable_toolset` `qa` (or `mta`). Ops BIND/ISSUE for a quoted policy, on **local / review
+apps / demo only**. The prod API is unchanged; `bind_or_issue_policy` refuses against a prod session
+before any network call. `confirm_prod` cannot unblock it. Sign in with a QA account, not a
+`+broker` variant (`GLOBAL_ACCESS_PROTECTED_RESOURCE`).
+
+The EXECUTE half of bind/issue — wraps `bindQuoteIssuePolicy`. `request_bind` is the agent handoff
+(notifies the team); this is what actually stamps the quote bound or issued.
+
+- `bind_or_issue: BIND` puts coverage in force. For Vave this is a live outbound carrier call. BIND
+  is enough to unlock Vave MTA (`create_mta_submission`).
+- `bind_or_issue: ISSUE` stamps the policy issued. Attach a `POLICY_DOC` with `attach_quote_file`
+  first, the same way the python script did.
+
+Identify the quote with `risk_id` plus `quote_identifier` (UUID, EID, or number). Prerequisites
+match `bindQuoteIssuePolicy`, not `request_bind`: Vave needs an `INVOICE` (`attach_quote_file`);
+other markets need `BINDER` + `INVOICE` and `policy_id` (required except Vave/Coterie). A quote
+letter is not a gate. On a bundle, pass the coverage child risk, not the parent.
+
+Local Vave shortcut to an MTA-ready policy (quoted Vave risk already in the session):
+
+```
+enable_toolset qa → select_quote → attach_quote_file INVOICE
+→ bind_or_issue_policy BIND → create_mta_submission
+```
+
+A cloned issued Vave risk (`risk-clone --stage issued`) is already bound — skip straight to
+`create_mta_submission`. Clones do not copy `vave_building_id_mappings`; a local PriceNew/bind
+writes those rows.
+
 ### Undoing a mistaken bind (`undo_bind`)
 
 Admin only (`GLOBAL_ACCESS_PROTECTED_RESOURCE`). The correction for a bind that should never have
@@ -1190,6 +1230,39 @@ Three things to know before driving any of this:
   required-forms check downgrades to a warning instead of blocking. On those products the per-choice
   `file_types` can't be derived either — pass it explicitly on each change, or uploaded files attach
   to nothing.
+
+## Vave mid-term adjustments (QA, non-prod)
+
+Load with `enable_toolset` `qa` (or `mta`). Same allowlist as the inspection QA tools: **local /
+review apps / demo only**. The prod API is unchanged; these tools refuse against a prod session
+before any network call. `confirm_prod` cannot unblock them. They are not on the `ops` profile.
+
+Distinct from `create_endorsement_request`, which files an ops-mediated request and does not price
+the change. Vave MTA clones the bound policy into a child risk, edits it, then dry-runs Vave
+`PriceAdjustment`.
+
+The bound Vave policy is the starting point. Get one without walking quote → subjectivities → ops
+queue: attach an `INVOICE` then `bind_or_issue_policy` BIND on a quoted Vave risk, or clone an
+issued Vave risk locally. Then:
+
+1. **`create_mta_submission`** — the web "Edit submission for MTA" button. Copies the bound policy
+   into a new MTA child (`migrateRiskValuesToNewProduct`, `childType: MTA`). Always clones onto
+   `monolinePropertyV2`, same as the app (`turnOffWind` handles wind on that child). Pass the
+   **property child** `risk_id` on a bundle, not the parent or the wind leg. If earlier MTAs were
+   accepted, the latest accepted one becomes the parent — same as the app. The mutation is
+   ownership-gated; the web button is QA-only. Returns the MTA risk id and `/risk/<id>/edit/review`.
+2. Edit buildings / address on that MTA risk with `modify_submission` (or in the app). Cosmetic
+   address edits keep the building's stable key; a real move is Vave **1507** and rejects the whole
+   request.
+3. **`dry_run_mta`** — the Request MTA modal's preview. Calls Vave and returns premium delta,
+   per-building `BuildingId`s, and issues. Requires `GLOBAL_MANAGE_MTA`. Does **not** save an MTA
+   quote (`saveDryRunMTA` in the app does that), but it does write an `mta_diff_snapshots` row and
+   Vave creates a submission row. Discard in the app to drop those leftovers; leaving the preview
+   leaves the rows. Takes `original_risk_id` (the bound policy), `mta_risk_id` (the child), plus the
+   form fields (`transaction_reason`, `effective_date`, `change_description`,
+   `coverage_parts_affected`).
+
+Saving, accepting, discarding, and undoing an MTA stay in the app.
 
 ## Administration (admin toolset)
 
@@ -1338,9 +1411,8 @@ merely a hidden group. What genuinely is not here:
 - **The signing ceremony itself** — the `esign` toolset generates and manages the packet and its
   signing URLs, but the interactive signing happens in the browser, and the manual-sign fallback
   documents are app-only.
-- **Mid-term adjustments** — the MTA wizard, which previews a premium delta and creates a separate
-  risk. Distinct from `create_endorsement_request`, which files an ops-mediated request and does not
-  price the change.
+- **Saving / accepting / undoing an MTA** — `create_mta_submission` and `dry_run_mta` cover creating
+  the child and previewing premium; persisting the dry-run, accepting, and undoing stay in the app.
 - **Premium financing** — financing estimates and payment programs.
 - **Changing policy dates on a bound quote.**
 - **Extracted document field values** — `get_extraction_status` reports how extraction is going, but
@@ -1349,9 +1421,10 @@ merely a hidden group. What genuinely is not here:
   user's own profile, not adding people.
 - **Importing a risk from JSON.**
 
-Endorsement requests, policy cancellation, non-renewal, inspection compliance, loss history,
-wildfire orders and the e-sign packet (including the per-state subjectivity forms) ARE covered — in
-the `endorsements`, `policy`, `claims`, `hazard` and `esign` toolsets.
+Endorsement requests, policy cancellation, non-renewal, inspection compliance, Vave mid-term
+adjustments, loss history, wildfire orders and the e-sign packet (including the per-state
+subjectivity forms) ARE covered — in the `endorsements`, `policy`, `mta`, `claims`, `hazard` and
+`esign` toolsets.
 
 ## Reporting problems
 

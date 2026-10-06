@@ -5,6 +5,78 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.36] - 2026-10-05
+
+First public release since 0.0.33; the 0.0.34 and 0.0.35 sections below ship in it too. The
+generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
+date. 0.0.33 was built against the 2026-09-04 schema.
+
+### Added
+
+- `p query`: My Book reads `bookSnapshot`, `bookClasses`, `bookInsights`, and the agency-network
+  cascade reads `getAgencyNetworkAgencies`, `getAgencyCascadeProposal`,
+  `getAgencyCascadeProposalPreview`, `getAgencyCascadeProposalHistory`,
+  `getAgencyCascadeProposalJobs`, `getAgencyCascadeJobSummary`, `getAgencyCascadeJobSummaries`,
+  `getAgencyCascadeRequeuePreview`, `getAgencyNetworkCascadeLock`.
+- `p mutation`: `createAgencyCascadeProposal`, `updateAgencyCascadeProposal`,
+  `acceptAgencyCascadeProposal`, `cancelAgencyCascadeProposal`, `requeueFailedAgencyCascadeJobs`,
+  `resolveDeletedCancellationTracking`.
+
+### Changed
+
+- Queries and mutations that were open to anonymous callers (search, class-code, tenancy and address
+  lookups, recoverable drafts, agency team reads, Ascend status, `createRisk`, `createBrokers`,
+  `createAscendAccount`, and more) now carry `@Authenticated` and need a `p login` session;
+  `p schema describe` shows the directive.
+- `addClaimToProperty` returns `claimId` for the new claim.
+
+### Removed
+
+- `p mutation logInAccessToken`: the API dropped the mutation. `p login` uses `logIn` and is
+  unaffected.
+
+## [0.0.35] - 2026-09-21
+
+`create_mta_submission` now clones onto property only, matching the web MTA button. Wind is
+`turnOffWind` on that child; a `monolineWind` dest is not a path the product produces. QA bind/MTA
+tools move off the `ops` profile onto `qa`.
+
+### Changed
+
+- `create_mta_submission` always clones onto `monolinePropertyV2`, matching the web button
+  (`useMTASubmission` / `turnOffWind`). The `coverage` argument and wind auto-pick are gone — a wind
+  MTA child is not a path the product produces, and dry-run loads the parent baseline as property.
+- `create_mta_submission` Forbidden hints name `@ResourceCheck ByRisk` ownership, not
+  `GLOBAL_MANAGE_MTA` (that permission is `dry_run_mta` only).
+- `bind_or_issue_policy` maps the ISSUE gate `"policy file not found"` to `attach_quote_file`
+  `POLICY_DOC`.
+- `dry_run_mta` copy now says the preview writes an `mta_diff_snapshots` row (and a Vave submission
+  row); Discard in the app drops them. It still does not save an MTA quote.
+- Parent pick trusts `getMTASubmissions` SQL order (`adjustmentEffectiveDate DESC`, then
+  `acceptedAt DESC`) instead of re-sorting in the tool.
+- `--toolsets qa` (also `enable_toolset("qa")`) loads `mta`. `--toolsets ops` no longer does —
+  ops/BPO work in prod, where these tools hard-refuse. `bind_or_issue_policy` moved from `policy`
+  into `mta` so the QA chain is one group. `p mcp-serve --help` lists both profiles (the flag help
+  is generated from the profile map so a new name cannot stay off `--help`).
+
+## [0.0.34] - 2026-09-10
+
+QA-only BIND/ISSUE and Vave MTA tools for local, demo, and review sessions. Testers can bind a
+quoted Vave policy and open the MTA child without walking the UI or touching the prod API — both
+wrap existing ops mutations, the same contract as the inspection QA tools.
+
+### Added
+
+- Vave bind/MTA QA (non-prod): `bind_or_issue_policy`, `create_mta_submission`, and `dry_run_mta`
+  wrap the existing `bindQuoteIssuePolicy` / `migrateRiskValuesToNewProduct` / `dryRunMTA` mutations
+  — no API, schema, web, or DB change. All three refuse before any network call unless the session
+  endpoint is localhost / `*.localhost` / `*.pathpoint.dev` (demo + review); prod and unknown URLs
+  get a "QA tool, non-prod only" message, and `confirm_prod` cannot unblock them. Other tools stay
+  fully prod-capable. `bind_or_issue_policy` is admin-only (`GLOBAL_ACCESS_PROTECTED_RESOURCE`);
+  BIND is a live carrier call for Vave and unlocks MTA; ISSUE typically needs a `POLICY_DOC`
+  attached first. `create_mta_submission` is ownership-gated; `dry_run_mta` requires
+  `GLOBAL_MANAGE_MTA`. The `ops` profile now loads the `mta` group as well.
+
 ## [0.0.33] - 2026-09-04
 
 Catches `p` up with three weeks of server changes and closes two ways a single answer or a single
