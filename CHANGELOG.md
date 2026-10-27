@@ -5,6 +5,45 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.37] - 2026-10-27
+
+The generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
+date. 0.0.36 was built against the 2026-10-05 schema.
+
+### Added
+
+- `p query`: `questions`, `bookClassMix`, `streetView`, `streetViewLink`,
+  `getCommissionExceptionsForAgency`, `getPendingCommissionExceptions`.
+- `p mutation`: `answerQuestions`, `addProperty`, `removeProperty`, `addClaim`, `removeClaim`,
+  `documentExtractionUploadURLs`, and the commission exception workflow
+  (`requestCommissionException`, `approveCommissionException`, `denyCommissionException`,
+  `deactivateCommissionException`).
+- Endorsement requests offer five more additional insured forms: CG2010, CG2012, CG2013, CG2026 and
+  CG2028.
+- Class code 10003 (Christmas Tree Sales – Lots) is in the Retail & Services catalog.
+
+### Changed
+
+- File uploads (`upload_risk_file`, `attach_quote_file`, `upload_subjectivity_file`,
+  `upload_proof_of_inspection`, `upload_inspection_file`, and the endorsement, confirmation and
+  cancellation `files` arrays) take an optional `content_base64`. The hosted HTTP server requires it
+  and uses `path` only as the file name; it never opens a caller-supplied filesystem path. The local
+  CLI still reads `path` and ignores `content_base64`.
+- GraphQL errors that carry `extensions.items` print those items, so a refused `submitRisk` names
+  each reason the risk is incomplete.
+- The carrier aspect types are folded into their product base types in the embedded schema; field
+  names on the base types are unchanged.
+
+### Fixed
+
+- Quote and risk summaries show a GL products-completed limit the carrier lists as Included as
+  `Included`, not `$1`.
+
+### Removed
+
+- `p query bookClasses` and `BookSnapshot.facts`: the API replaced them with `bookClassMix` and
+  server-side aggregates.
+
 ## [0.0.36] - 2026-10-05
 
 First public release since 0.0.33; the 0.0.34 and 0.0.35 sections below ship in it too. The
