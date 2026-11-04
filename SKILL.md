@@ -19,14 +19,19 @@ user.
 
 Every operation follows the same shape:
 
-1. **Login** — call `get_login_status`. It verifies the saved session with the server, so its answer
-   is live truth: "NOT logged in" with a session file present means the session expired. If not
-   logged in, call the `login` MCP tool — it opens the browser sign-in form directly on the user's
-   machine (no terminal involved) and returns the form URL in case the window did not appear. Ask
-   the user to complete the form in the browser; the window expires after a few minutes, and only
-   one sign-in can be open at a time. The localhost form is how the password stays out of the chat —
-   never accept a password from the user in conversation. While the form is open, `get_login_status`
-   reports the sign-in as still in progress; once the user finishes, call it again to confirm.
+1. **Login** — call `get_login_status`. It verifies the sign-in with the server, so its answer is
+   live truth. Never accept a password from the user in conversation. What to do next depends on how
+   the user connected:
+    - **Hosted connector** (the reply mentions a bearer token): the user signed in when they added
+      the Pathpoint connector, so there is nothing to log in to. If the sign-in is rejected or is
+      the wrong account, ask the user to disconnect and reconnect the Pathpoint connector in their
+      Claude settings.
+    - **Local install** (`p` on the user's machine): "NOT logged in" with a session file present
+      means the session expired or was revoked. Call the `login` MCP tool — it opens the browser
+      sign-in form directly on the user's machine and returns the form URL in case the window did
+      not appear. Ask the user to complete the form; it expires after a few minutes, and only one
+      sign-in can be open at a time. While the form is open, `get_login_status` reports the sign-in
+      as still in progress; once the user finishes, call it again to confirm.
 2. **Find the risk** — ask for a UUID or company name, then call `search_risk`. If the user just
    wants to browse recent activity, use `list_risks` instead. If multiple results, present a
    numbered list and let the user pick. Confirm with `get_risk` to show full details.
@@ -39,8 +44,9 @@ Every operation follows the same shape:
 ## Ops & BPO workflows
 
 Post-bind servicing lives in opt-in toolsets. If the user's job is operations rather than broking,
-load them all at once — `p mcp-serve --toolsets ops` in the MCP client config, or `enable_toolset`
-mid-session. Where each of the common ops jobs is documented below.
+load them all at once with `enable_toolset ops` (or, on a local install,
+`p mcp-serve --toolsets ops` in the MCP client config). Where each of the common ops jobs is
+documented below.
 
 QA bind/MTA tools never run in prod (they hard-refuse), so they are **not** on the `ops` profile.
 Testers on local / demo / review load `--toolsets qa` (or `enable_toolset qa`) instead.
@@ -81,9 +87,11 @@ loads `mta` (BIND/ISSUE + Vave MTA, local/demo/review only).
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
 tell the user to go to the app) for a tool that is merely hidden. If the newly loaded tools still do
-not appear on the next turn, the MCP client is not honouring tool-list changes — tell the user to
-add `--toolsets <name>` (or `--toolsets all`) to the `p mcp-serve` args in their MCP config, or set
-`$P_MCP_TOOLSETS`, and restart it.
+not appear on the next turn, the MCP client is not honouring tool-list changes. Follow the recovery
+step in the `enable_toolset` reply: on the hosted connector, tell the user those tools are not
+available there yet (reconnecting does not help); on a local install, they add `--toolsets <name>`
+(or `--toolsets all`) to the `p mcp-serve` args in their MCP config, or set `$P_MCP_TOOLSETS`, and
+restart it.
 
 Reading a risk's buildings (`list_properties`) is core, so per-location answers can still be written
 with `modify_submission` without loading the properties group.
@@ -934,7 +942,9 @@ error is the answer, so relay it rather than retrying.
 ### Agency directory (`list_agency_users`)
 
 Lists names and emails at the user's agency. Use it to resolve "assign this to Sarah" into an exact
-email for `set_risk_owner`, or to pick a licensed agent for `request_bind`.
+email for `set_risk_owner`, or to pick a licensed agent for `request_bind`. Pass `query` with part
+of the name or email (`query: "sarah"`) — large agencies have hundreds of users, and without a query
+the list stops at `limit` (default 25, max 100).
 
 ## Files & documents
 

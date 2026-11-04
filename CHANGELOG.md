@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.39] - 2026-11-04
+
+### Changed
+
+- `list_agency_users` takes `query` (part of a name or email) and `limit` (default 25, max 100). It
+  used to return the whole agency in one reply — 577 users on a large agency.
+- On the hosted MCP connector, `login`, `get_login_status`, `list_toolsets` and `enable_toolset` no
+  longer tell the user to use a localhost sign-in form, `~/.config/p/session.json` or `p mcp-serve`
+  settings. Sign-in problems point to reconnecting the Pathpoint connector. `enable_toolset` no
+  longer claims it notified the client: the hosted server is stateless and cannot. The skill covers
+  both setups.
+
 ## [0.0.38] - 2026-11-04
 
 The generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
