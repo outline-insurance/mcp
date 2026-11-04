@@ -286,7 +286,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.40 · latest release
+        <span class="dot"></span> v0.0.41 · latest release
       </a>
       <h1>Agent guide</h1>
       <p class="lede">Everything you need to quote, submit, and bind E&amp;S business with Pathpoint through Claude — from install to bind request.</p>
@@ -499,16 +499,9 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
 
         <div class="recipe">
           <h3>Renewals</h3>
-          <p>Start the renewal and see what changed year over year.</p>
-          <span class="say">Renew the Hill Country policy — what changed since last term?</span>
-          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>renew_risk</code><code>get_renewal_changes</code></div>
-        </div>
-
-        <div class="recipe">
-          <h3>Same risk, new terms</h3>
-          <p>Clone a submission onto a new effective date.</p>
-          <span class="say">Quote the same building for a March 1 start.</span>
-          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>clone_submission</code></div>
+          <p>See what changed on a renewal year over year.</p>
+          <span class="say">What changed on the Hill Country renewal since last term?</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>get_renewal_changes</code></div>
         </div>
 
         <div class="recipe">
@@ -519,10 +512,10 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
         </div>
 
         <div class="recipe">
-          <h3>Hand off or share</h3>
-          <p>Move a risk to a colleague or share it with them.</p>
-          <span class="say">Hand this one to Maria.</span>
-          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>share_risk</code><code>set_risk_owner</code><code>list_agency_users</code></div>
+          <h3>Share with your agency</h3>
+          <p>Let your colleagues see a risk.</p>
+          <span class="say">Share this one with the rest of the agency.</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>share_risk</code><code>list_agency_users</code></div>
         </div>
       </section>
 
@@ -564,7 +557,6 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
           <tr><td><code>get_appetite</code></td><td>will this quote, refer, or decline, before you submit</td></tr>
           <tr><td><code>select_markets</code></td><td>steer which carriers see it</td></tr>
           <tr><td><code>submit_risk</code></td><td>send it to markets</td></tr>
-          <tr><td><code>resubmit_risk</code></td><td>send an updated application back out</td></tr>
           <tr><td><code>create_excess_from_quote</code></td><td>start an excess layer over a quote</td></tr>
         </table>
         </div>
@@ -604,10 +596,9 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
           <tr><td><code>get_action_items</code></td><td>what needs your attention, yours or agency-wide</td></tr>
           <tr><td><code>get_risk_activity</code></td><td>the activity feed</td></tr>
           <tr><td><code>add_risk_note</code></td><td>leave a permanent note (visible to your agency and Pathpoint)</td></tr>
-          <tr><td><code>renew_risk</code></td><td>start the renewal</td></tr>
-          <tr><td><code>clone_submission</code></td><td>copy a submission to a new effective date</td></tr>
+          <tr><td><code>get_renewal_changes</code></td><td>what changed on a renewal</td></tr>
           <tr><td><code>update_policy_dates</code></td><td>change effective/expiration dates</td></tr>
-          <tr><td><code>share_risk</code> / <code>set_risk_owner</code></td><td>share or reassign within your agency</td></tr>
+          <tr><td><code>share_risk</code></td><td>share a risk with your agency</td></tr>
           <tr><td><code>list_agency_users</code></td><td>your colleagues, for sharing and binding</td></tr>
           <tr><td><code>get_insured_contact</code> / <code>set_insured_contact</code></td><td>the insured's contact details</td></tr>
           <tr><td><code>request_loss_runs</code></td><td>ask for loss runs on a policy</td></tr>
@@ -636,7 +627,7 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
         <p>Pathpoint's markets. Some quote instantly when you submit; others are reviewed by an underwriter and come back later — ask Claude "any new quotes on this?" or check your action items.</p>
 
         <h3>Claude says it can't do something I expect.</h3>
-        <p>Some Pathpoint capabilities are aimed at Pathpoint's internal teams and aren't loaded by default. If something you need seems missing, ask Claude to "check the available Pathpoint toolsets" — and if it's genuinely not there, it lives in the Pathpoint app.</p>
+        <p>Some Pathpoint capabilities are for Pathpoint's internal teams, and Claude doesn't offer them to brokers. If something you need isn't there, it lives in the Pathpoint app.</p>
 
         <h3>Is my password safe?</h3>
         <p>You type it only into a sign-in form served from your own machine in your browser, and it goes only to Pathpoint. It never appears in the chat, the terminal, or any log.</p>

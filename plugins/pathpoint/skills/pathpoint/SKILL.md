@@ -43,13 +43,14 @@ Every operation follows the same shape:
 
 ## Ops & BPO workflows
 
-Post-bind servicing lives in opt-in toolsets. If the user's job is operations rather than broking,
-load them all at once with `enable_toolset ops` (or, on a local install,
-`p mcp-serve --toolsets ops` in the MCP client config). Where each of the common ops jobs is
-documented below.
+Pathpoint staff work lives in the opt-in `internal` group. On a local install, an account with
+Pathpoint staff permission loads it automatically; otherwise use `enable_toolset internal` (or
+`--toolsets internal` in the `p mcp-serve` args). Where each of the common ops jobs is documented
+below.
 
-QA bind/MTA tools never run in prod (they hard-refuse), so they are **not** on the `ops` profile.
-Testers on local / demo / review load `--toolsets qa` (or `enable_toolset qa`) instead.
+QA bind/MTA tools never run in prod (they hard-refuse), so they are **not** in `internal`. Testers
+on local / demo / review load `qa` (`enable_toolset qa`) instead; a staff QA account loads it
+automatically there.
 
 | Job                               | Tools                                                 | Section                           |
 | --------------------------------- | ----------------------------------------------------- | --------------------------------- |
@@ -61,41 +62,37 @@ Testers on local / demo / review load `--toolsets qa` (or `enable_toolset qa`) i
 | Add a bind requirement            | `create_subjectivity`                                 | Subjectivity authoring            |
 | Reject inspection compliance      | `mark_compliance_insufficient`                        | Inspections                       |
 | Confirm or decline an endorsement | `confirm_endorsement`, `decline_endorsement_requests` | Endorsements                      |
-| Bind or issue a quoted policy     | `bind_or_issue_policy` (`qa` / `mta`, not `ops`)      | Binding or issuing (QA, non-prod) |
-| Start a Vave mid-term adjustment  | `create_mta_submission`, `dry_run_mta` (`qa` / `mta`) | Vave MTA (QA, non-prod)           |
+| Bind or issue a quoted policy     | `bind_or_issue_policy` (`qa`, not `internal`)         | Binding or issuing (QA, non-prod) |
+| Start a Vave mid-term adjustment  | `create_mta_submission`, `dry_run_mta` (`qa`)         | Vave MTA (QA, non-prod)           |
 
 ## Not every tool is loaded (`list_toolsets`, `enable_toolset`)
 
-Only the **core** group loads by default — everything in "The everyday loop" below. Nine specialist
-groups are hidden from the tool list to keep the context payload small:
+Tools are grouped by who uses them. The **agent** tier loads by default: everything a broker does,
+from finding a risk to binding it, plus the broker side of a bound policy (endorsement and
+cancellation requests, inspection proof, loss-history rows, e-sign, building edits, the user's own
+profile). Three groups are opt-in:
 
-| Group            | What is in it                                                                           |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| `endorsements`   | Changing or cancelling a BOUND policy, and the ops side that accepts or declines it     |
-| `policy`         | Cancel/reinstate, non-renewal, undo bind, carrier inspections, QA inspection setup      |
-| `mta`            | QA / non-prod: BIND or ISSUE a quote, then Vave mid-term adjustments (create + dry-run) |
-| `properties`     | Adding, duplicating and deleting buildings on a multi-location risk                     |
-| `admin`          | Agency-network and agency records (commissions), your own profile and sharing scope     |
-| `claims`         | Loss-history rows on a building, and flagging a new claim against an issued quote       |
-| `hazard`         | Ordering third-party hazard data (wildfire scores) — internal ops/QA work               |
-| `subjectivities` | Authoring a quote's bind requirements — add, edit, delete, bulk-accept                  |
-| `esign`          | The e-sign packet on a selected quote: state field census, generate, invalidate         |
+| Group      | Who                                 | What is in it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal` | Pathpoint ops, underwriting, AMs    | `quote_risk`, `update_quote`, `delete_quote`, `attach_quote_file`, `decline_submission`, `clone_submission`, `renew_risk`, `resubmit_risk`, `set_risk_owner`, `create_bind_request_task`, `cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`, `undo_bind`, `amend_bound_policy_dates`, `confirm_endorsement`, `decline_endorsement_requests`, `mark_compliance_insufficient`, `flag_pending_claim`, `create_subjectivity`, `update_subjectivity`, `delete_subjectivity`, `accept_subjectivities`, `order_wildfire_scores` |
+| `admin`    | Tenant admins (also loads internal) | `list_agency_networks`, `create_agency_network`, `update_agency_network`, `search_agencies`, `set_agency_commission`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `qa`       | Testers, local / demo / review only | `bind_or_issue_policy`, `create_mta_submission`, `dry_run_mta`, `update_inspection_status`, `upload_inspection_file`                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
-Profiles (one flag for a whole job): `ops` loads `policy`, `endorsements`, `subjectivities`; `qa`
-loads `mta` (BIND/ISSUE + Vave MTA, local/demo/review only).
+Most `internal` and `admin` tools need Pathpoint staff permission, which the server enforces: a
+broker who loads them gets FORBIDDEN. Sections below that use an opt-in tool say which group it is
+in.
 
 **If a Pathpoint capability looks missing, call `list_toolsets` before concluding it does not
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
 tell the user to go to the app) for a tool that is merely hidden. If the newly loaded tools still do
 not appear on the next turn, the MCP client is not honouring tool-list changes. Follow the recovery
-step in the `enable_toolset` reply. On the hosted connector the tool list cannot change
-mid-conversation: the user adds `?toolsets=<name>` (comma-separated, or a profile such as `ops`) to
-the end of the connector URL and reconnects. On a local install, they add `--toolsets <name>` (or
-`--toolsets all`) to the `p mcp-serve` args in their MCP config, or set `$P_MCP_TOOLSETS`, and
-restart it.
+step in the `enable_toolset` reply: on a local install, the user adds `--toolsets <name>` (or
+`--toolsets all`) to the `p mcp-serve` args in their MCP config, or sets `$P_MCP_TOOLSETS`, and
+restarts it.
 
-Reading a risk's buildings (`list_properties`) is core, so per-location answers can still be written
-with `modify_submission` without loading the properties group.
+The hosted connector serves the agent tier by default, and its tool list is fixed: it has no
+`list_toolsets` or `enable_toolset`. The server withholds staff permissions from hosted sessions, so
+staff work needs a local install (`p login`).
 
 ## The everyday loop
 
@@ -376,7 +373,7 @@ Adds are idempotent and removing a market that was not selected does nothing, so
 harmless. This only affects where a risk goes **next** — it does not recall, cancel or unsend
 anything already submitted. Use `resubmit_risk` to go back out to markets.
 
-### Quoting (`quote_risk`)
+### Quoting (`quote_risk`, `internal`)
 
 The tool routes limits into the correct typed input automatically based on the risk's product. You
 usually don't need to pass `product` — it's inferred from the risk. Pass it only if the user
@@ -432,7 +429,7 @@ property/wind, and Churches-GL quotes it also lists the carrier's coverage adjus
 silence is never ambiguous. Other coverages — including the legacy generic package product, which
 the server never records modifications for — don't carry them, and the tool doesn't fetch there.
 
-### Updating quotes (`update_quote`)
+### Updating quotes (`update_quote`, `internal`)
 
 Show the existing quotes from `get_risk` as a numbered list with carrier, quote number, premium, and
 status. Let the user pick one. Use `get_quote` to show full current details, then ask what to
@@ -454,9 +451,10 @@ Run before `request_bind` or whenever the user asks "can I bind this yet?" — i
 blockers and incomplete subjectivities without changing anything, and names the tool that clears
 each one (`upload_subjectivity_file` for FILES, `answer_subjectivity` for TEXT / DATE / CHECKBOX /
 CONTACT_INFO). Walk the user through fixing each blocker, then re-check. A missing quote letter
-comes back as a `QUOTE_FILE_MISSING` blocker — that one is fixed with `attach_quote_file`, not in
-the app. On the hosted connector (and for non-staff accounts) the server refuses the validation
-step, so the report lists only subjectivities and says so; never call that "ready to bind".
+comes back as a `QUOTE_FILE_MISSING` blocker — that one is fixed with `attach_quote_file`
+(`internal`), not in the app. On the hosted connector (and for non-staff accounts) the server
+refuses the validation step, so the report lists only subjectivities and says so; never call that
+"ready to bind".
 
 ### Requesting to bind (`request_bind`)
 
@@ -480,7 +478,7 @@ Two things it won't do on its own:
   be generating — re-check shortly instead of uploading one.
 - It does not put the quote in front of Pathpoint ops. Follow it with `create_bind_request_task`.
 
-### Ops bind queue (`create_bind_request_task`)
+### Ops bind queue (`create_bind_request_task`, `internal`)
 
 `request_bind` runs the bind validations and notifies the team, but it does not create the ops task,
 so a bind requested through `request_bind` alone never reaches the queue ops works off. Call
@@ -625,7 +623,7 @@ options ("Per Occurrence Limit") take the option text as usual.
 ### Multi-location risks (`list_properties`, `add_property`, `duplicate_property`, `delete_property`)
 
 `create_risk` seeds exactly one property, so a second building or address only exists if you create
-it. `list_properties` is core; the three write tools live in the `properties` toolset.
+it. All four tools are in the agent tier.
 
 - `list_properties` — every building on the risk with its `property_id`, name, address, and the
   exact field-path prefix `modify_submission` needs for it. No query returns property ids, so this
@@ -719,7 +717,7 @@ record: writing contact JSON into a CONTACT_INFO subjectivity sets the subjectiv
 this empty. The web app copies the contact into the Inspection Contact / Insured Pay / Audit Contact
 subjectivities; these tools do not, so answer those with `answer_subjectivity`. The contact also
 gates the e-sign flow: after the agent signs a packet, Pathpoint emails the insured their signing
-turn ONLY when this contact exists (see the esign toolset). Both tools take the risk UUID plus any
+turn ONLY when this contact exists (see The e-sign packet). Both tools take the risk UUID plus any
 quote identifier — number, EID, or UUID — resolved through the risk.
 
 - `get_insured_contact` — the saved contact, any contacts on the risk's other quotes, and the
@@ -733,7 +731,7 @@ quote identifier — number, EID, or UUID — resolved through the risk.
   no such effect. Warn the user before replacing, and re-check the Inspection Contact / Insured Pay
   / Audit Contact subjectivities afterwards — this tool does not rewrite them the way the app does.
 
-### Deleting quotes (`delete_quote`)
+### Deleting quotes (`delete_quote`, `internal`)
 
 This is a soft delete — the quote is marked deleted and hidden from normal queries, but the action
 is not typically reversible from the UI. Always confirm with the user before calling the tool:
@@ -779,15 +777,15 @@ the quote being bound disagreeing. If nothing is selected yet, `select_quote` fi
 `quote_identifier` is accepted as confirmation but must name the selected quote. Bound quotes are
 refused outright: those dates belong to an active policy, and changing them is endorsement work
 (`create_endorsement_request`), not a pre-bind fix — the refusal names `amend_bound_policy_dates`
-(policy toolset) as the in-place correction path if that is what is actually needed.
+(`internal`) as the in-place correction path if that is what is actually needed.
 
-**`amend_bound_policy_dates`** (policy toolset) is that path — the exact inverse of
-`update_policy_dates`: it only accepts a **BOUND** quote, where the core tool only accepts a
+**`amend_bound_policy_dates`** (`internal`) is that path — the exact inverse of
+`update_policy_dates`: it only accepts a **BOUND** quote, where the agent tool only accepts a
 non-bound one. It sends the IDENTICAL `updatePolicyDates` mutation, and the server allows it on a
 bound or issued quote **only for Pathpoint staff (`GLOBAL_ACCESS_PROTECTED_RESOURCE`)** — anyone
 else gets FORBIDDEN and nothing is written. It isn't available over the hosted MCP connector, which
 never carries staff permissions; use a local `p login` session. On top of that, it needs the opt-in
-`policy` toolset and a required `reason`. It exists because Pathpoint's ops team corrects a bound
+`internal` group and a required `reason`. It exists because Pathpoint's ops team corrects a bound
 policy's recorded dates in place every day, today in a third-party Retool app, and Retool does it
 worse: it writes only the EAV submission choice (`setUserChoice`) and never the quote row, so every
 Retool date amend leaves the quote and the application disagreeing. This tool writes both via the
@@ -810,11 +808,11 @@ and the refusal it gets back names `select_quote`, which is not a sensible instr
 already in force. The common case is unaffected: a bound quote is normally still the risk's selected
 one.
 
-## Subjectivity authoring (subjectivities toolset)
+## Subjectivity authoring (`internal`)
 
-Load with `enable_toolset` — these four tools are hidden by default. Everything above is reading and
-answering the bind requirements a quote already has; these change what the requirements ARE — the
-underwriter/ops side that Retool's Quoting-BT app has had all along.
+These four tools are in the opt-in `internal` group. Everything above is reading and answering the
+bind requirements a quote already has; these change what the requirements ARE — the underwriter/ops
+side that Retool's Quoting-BT app has had all along.
 
 - **`create_subjectivity`** adds a new bind requirement to a quote — admin only (requires
   `GLOBAL_ACCESS_PROTECTED_RESOURCE`). Takes `risk_id`, `quote_id` (UUID/EID/quote number), `title`,
@@ -859,9 +857,9 @@ underwriter/ops side that Retool's Quoting-BT app has had all along.
   no GraphQL errors, so a partial failure is reported as an error result even when some items
   succeeded — check the message for which ones actually went through.
 
-## The e-sign packet (esign toolset)
+## The e-sign packet
 
-Load with `enable_toolset` — these three tools are hidden by default.
+These three tools are in the agent tier.
 
 Most FILES-type bind requirements (ACORDs, the TRIA form, the Pathpoint supplemental, no-known-loss
 letters, per-state diligent-effort and affidavit forms) are normally satisfied in one stroke by the
@@ -898,7 +896,7 @@ Two boundaries: quotes without a subjectivity state have no state form (satisfy 
 and the interactive signing ceremony itself stays in the browser — these tools produce and manage
 the links, they cannot sign.
 
-### Resubmitting (`resubmit_risk`)
+### Resubmitting (`resubmit_risk`, `internal`)
 
 Use after quotes expire, markets decline, or the submission changed — "get me fresh quotes" or
 "resubmit to Vave". Targets specific carriers by name or all submittable markets when omitted.
@@ -907,7 +905,7 @@ so on a mismatch just relay the choices. The classless-submit guard (see `submit
 too — a resubmit re-notifies markets, so a risk with a blank required class of business is refused
 with the same remediation.
 
-### Declining a submission (`decline_submission`)
+### Declining a submission (`decline_submission`, `internal`)
 
 Records a manual decline on a market's behalf with a free-text reason, which shows on the activity
 log. Identify the submission by its UUID, or by `risk_id` plus the carrier's display name (matched
@@ -915,7 +913,7 @@ case-insensitively as a substring). On a package risk, `decline_all_lines: true`
 sibling negotiation that shares this market across the child lines. Confirm the carrier and the
 reason with the user first — this is what the agent will see as the market's answer.
 
-### Renewals (`renew_risk`, `get_renewal_changes`)
+### Renewals (`renew_risk` is `internal`, `get_renewal_changes`)
 
 Use `renew_risk` when the user wants to renew an expiring policy/term. It creates a renewal risk
 linked to the original and carries data forward — it refuses to duplicate an existing renewal and
@@ -927,7 +925,7 @@ its markets and quotes with `get_risk`.
 when — useful for "what's different on the renewal?". The output leads with the expiring term's
 carrier of record; "not recorded" there means the prior term never bound, not a data error.
 
-### Cloning submissions (`clone_submission`)
+### Cloning submissions (`clone_submission`, `internal`)
 
 Show a summary of the source risk. Ask:
 
@@ -958,7 +956,7 @@ LRO (`cglLRO` / `packageLRO`) becomes `lroExcessStandalone`, and a bundle qualif
 whichever of those it offers. Any other coverage comes back with an error naming the coverage — that
 error is the answer, so relay it rather than retrying.
 
-### Sharing & ownership (`share_risk`, `set_risk_owner`)
+### Sharing & ownership (`share_risk`, `set_risk_owner` is `internal`)
 
 - `share_risk` — "share with my team" → scope AGENCY; "make this private" → PERSONAL.
 - `set_risk_owner` — hand a submission to a teammate by email. Confirm the email before calling; the
@@ -996,7 +994,7 @@ the document list; pass `include_urls: true` to get presigned download links, an
 not the raw URL string dump. If nothing is attached yet, say so; quote letters can take a few
 minutes to generate after quoting.
 
-### Attaching quote documents (`attach_quote_file`)
+### Attaching quote documents (`attach_quote_file`, `internal`)
 
 The write side of `get_quote_documents` — uploads a local file and attaches it to a quote as a typed
 document. Admin-only: the underlying mutation requires `GLOBAL_ACCESS_PROTECTED_RESOURCE`.
@@ -1036,9 +1034,10 @@ The file uploads once regardless of how many ids are passed. Every quote gets it
 `addFileToQuote` call, and a failure on one does not stop the rest — the result names which quotes
 attached and which did not, so a partial failure is never reported as a plain success.
 
-## After the bind: servicing a policy (policy toolset)
+## After the bind: servicing a policy
 
-Load with `enable_toolset` — these tools are hidden by default.
+`get_inspection_status` and `upload_proof_of_inspection` are in the agent tier. Everything else here
+is in the opt-in `internal` group, except the QA tools, which are in `qa`.
 
 ### Inspections (`get_inspection_status`, `upload_proof_of_inspection`, `mark_compliance_insufficient`)
 
@@ -1106,7 +1105,7 @@ the row via the real path, then set status.
    actual prod kickoff — inspections row plus `INSPECTION_PROCESSING`. The risk landing in
    `BIND_REQUESTED` is prod-faithful. For a bundle, subsequent inspection writes take the
    **coverage/child** risk id, not the parent.
-5. `enable_toolset` `policy` if the QA tools are hidden, then `update_inspection_status`.
+5. `enable_toolset` `qa` if the QA tools are hidden, then `update_inspection_status`.
 
 **Setting status (`update_inspection_status`).** Params: `risk_id`, `status`, optional `comment`.
 Settable values: `INSPECTION_PROCESSING`, `INSPECTION_COMPLIANCE_REQUIRED`,
@@ -1165,10 +1164,10 @@ _Attaching quote documents_.
 
 ### Binding or issuing (QA, non-prod)
 
-Load with `enable_toolset` `qa` (or `mta`). Ops BIND/ISSUE for a quoted policy, on **local / review
-apps / demo only**. The prod API is unchanged; `bind_or_issue_policy` refuses against a prod session
-before any network call. `confirm_prod` cannot unblock it. Sign in with a QA account, not a
-`+broker` variant (`GLOBAL_ACCESS_PROTECTED_RESOURCE`).
+Load with `enable_toolset` `qa`. Ops BIND/ISSUE for a quoted policy, on **local / review apps / demo
+only**. The prod API is unchanged; `bind_or_issue_policy` refuses against a prod session before any
+network call. `confirm_prod` cannot unblock it. Sign in with a QA account, not a `+broker` variant
+(`GLOBAL_ACCESS_PROTECTED_RESOURCE`).
 
 The EXECUTE half of bind/issue — wraps `bindQuoteIssuePolicy`. `request_bind` is the agent handoff
 (notifies the team); this is what actually stamps the quote bound or issued.
@@ -1214,9 +1213,11 @@ Two boundaries to respect:
 Same targeting as the other policy tools: `risk_id`, with the single bound quote picked by default.
 The tool shows the state before and after so what changed is on the record.
 
-## Endorsements (endorsements toolset)
+## Endorsements
 
-Bound policies only. Load with `enable_toolset` — these six tools are hidden by default.
+Bound policies only. `create_endorsement_request`, `list_endorsement_requests`,
+`get_confirmed_endorsements` and `request_policy_cancellation` are in the agent tier;
+`confirm_endorsement` and `decline_endorsement_requests` are in the opt-in `internal` group.
 
 Broker side:
 
@@ -1270,9 +1271,9 @@ Three things to know before driving any of this:
 
 ## Vave mid-term adjustments (QA, non-prod)
 
-Load with `enable_toolset` `qa` (or `mta`). Same allowlist as the inspection QA tools: **local /
-review apps / demo only**. The prod API is unchanged; these tools refuse against a prod session
-before any network call. `confirm_prod` cannot unblock them. They are not on the `ops` profile.
+Load with `enable_toolset` `qa`. Same allowlist as the inspection QA tools: **local / review apps /
+demo only**. The prod API is unchanged; these tools refuse against a prod session before any network
+call. `confirm_prod` cannot unblock them. They are not in `internal`.
 
 Distinct from `create_endorsement_request`, which files an ops-mediated request and does not price
 the change. Vave MTA clones the bound policy into a child risk, edits it, then dry-runs Vave
@@ -1301,9 +1302,10 @@ issued Vave risk locally. Then:
 
 Saving, accepting, discarding, and undoing an MTA stay in the app.
 
-## Administration (admin toolset)
+## Administration
 
-Load with `enable_toolset` — these eight tools are hidden by default.
+The agency-network and agency tools are in the opt-in `admin` group. The profile tools are in the
+agent tier.
 
 ### Agency networks (`list_agency_networks`, `create_agency_network`, `update_agency_network`)
 
@@ -1366,9 +1368,9 @@ default commissions live on `update_agency_network` above.
   created afterwards (that is `update_my_profile(share_risks=…)`), and for a single risk use
   `share_risk`.
 
-## Loss history (claims toolset)
+## Loss history
 
-Load with `enable_toolset` — these four tools are hidden by default.
+`flag_pending_claim` is in the opt-in `internal` group. The other three tools are in the agent tier.
 
 **Two unrelated things are both called "claim" here.** Getting them confused will produce a very
 wrong answer, so establish which the user means before touching anything:
@@ -1428,9 +1430,9 @@ wrong answer, so establish which the user means before touching anything:
   does not de-duplicate, but the tool does: it reads the live markers first and refuses if the quote
   is already flagged, so a repeated call is safe and its refusal is not an error to route around.
 
-## Hazard data (hazard toolset)
+## Hazard data (`internal`)
 
-Load with `enable_toolset` — this one tool is hidden by default.
+This tool is in the opt-in `internal` group.
 
 - `order_wildfire_scores` — orders CoreLogic wildfire scores for a risk's western-state locations
   and files the report into Novidea. **Internal ops/QA work, not part of the broker flow** — the web
@@ -1449,22 +1451,21 @@ Load with `enable_toolset` — this one tool is hidden by default.
 Check `list_toolsets` before telling a user something is unavailable — most of what looks missing is
 merely a hidden group. What genuinely is not here:
 
-- **The signing ceremony itself** — the `esign` toolset generates and manages the packet and its
-  signing URLs, but the interactive signing happens in the browser, and the manual-sign fallback
-  documents are app-only.
+- **The signing ceremony itself** — the e-sign tools generate and manages the packet and its signing
+  URLs, but the interactive signing happens in the browser, and the manual-sign fallback documents
+  are app-only.
 - **Saving / accepting / undoing an MTA** — `create_mta_submission` and `dry_run_mta` cover creating
   the child and previewing premium; persisting the dry-run, accepting, and undoing stay in the app.
 - **Premium financing** — financing estimates and payment programs.
 - **Extracted document field values** — `get_extraction_status` reports how extraction is going, but
   the extracted values themselves, and cancelling a running extraction, are app-only.
-- **Creating broker users** — the `admin` toolset covers agency-network records and the logged-in
-  user's own profile, not adding people.
+- **Creating broker users** — the `admin` group covers agency-network and agency records, and the
+  profile tools cover the logged-in user, not adding people.
 - **Importing a risk from JSON.**
 
 Endorsement requests, policy cancellation, non-renewal, inspection compliance, Vave mid-term
 adjustments, loss history, wildfire orders and the e-sign packet (including the per-state
-subjectivity forms) ARE covered — in the `endorsements`, `policy`, `mta`, `claims`, `hazard` and
-`esign` toolsets.
+subjectivity forms) ARE covered — in the agent tier or the `internal` and `qa` groups.
 
 ## Reporting problems
 

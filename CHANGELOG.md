@@ -7,6 +7,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.41] - 2026-11-05
+
+### Changed
+
+- MCP tools are grouped by who uses them. The agent tier loads by default and has everything a
+  broker does, from finding a risk to binding it, plus the broker side of a bound policy. Three
+  groups are opt-in: `internal` (Pathpoint ops, underwriting and account management), `admin`
+  (agency networks and commissions; also loads `internal`) and `qa` (test-host tools that refuse
+  against prod).
+- Brokers no longer load tools that only Pathpoint staff can use. `quote_risk`, `update_quote`,
+  `delete_quote`, `attach_quote_file`, `decline_submission`, `clone_submission`, `renew_risk`,
+  `resubmit_risk` and `set_risk_owner` moved into `internal`, because the server refuses them for
+  other accounts.
+- Brokers get tools that were hidden before: building edits, loss-history rows, e-sign, endorsement
+  and cancellation requests, inspection status and proof, and their own profile.
+- On a local install, an account with Pathpoint staff permission
+  (`GLOBAL_ACCESS_PROTECTED_RESOURCE`) loads `internal` automatically, and a staff QA account also
+  loads `qa` on local, demo and review hosts. A Pathpoint email alone is not enough, so broker test
+  personas get the broker tools. The groups load in the background after startup and when
+  `get_login_status` runs, and they drop out of the tool list as soon as the saved session belongs
+  to someone else. `--toolsets` (or `$P_MCP_TOOLSETS`) turns this off and picks the groups instead;
+  `--toolsets agent` shows exactly what a broker sees.
+- The hosted connector serves the agent tier only and no longer offers `list_toolsets` or
+  `enable_toolset`. The server withholds staff permissions from hosted sessions, so `internal` tools
+  could only refuse there. A connector URL that still ends in `?toolsets=` keeps working; the
+  parameter is ignored.
+- The guide page no longer suggests that brokers renew, clone or reassign a risk. The server only
+  lets Pathpoint staff do those.
+- Old `--toolsets` names (`core`, `ops`, `policy`, `endorsements`, `subjectivities`, `claims`,
+  `hazard`, `mta`, `properties`, `esign`) are accepted and ignored, so old MCP configs still start
+  and the account's permission decides the groups.
+
 ## [0.0.40] - 2026-11-04
 
 ### Changed
