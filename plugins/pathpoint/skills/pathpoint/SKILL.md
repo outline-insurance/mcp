@@ -759,23 +759,24 @@ refused outright: those dates belong to an active policy, and changing them is e
 
 **`amend_bound_policy_dates`** (policy toolset) is that path — the exact inverse of
 `update_policy_dates`: it only accepts a **BOUND** quote, where the core tool only accepts a
-non-bound one. It sends the IDENTICAL `updatePolicyDates` mutation, so it requires **ordinary
-risk/quote access — the same authorization as `update_policy_dates`, with no additional admin
-permission enforced**. The controls on it are the opt-in `policy` toolset and the required `reason`.
-It exists because Pathpoint's ops team corrects a bound policy's recorded dates in place every day,
-today in a third-party Retool app, and Retool does it worse: it writes only the EAV submission
-choice (`setUserChoice`) and never the quote row, so every Retool date amend leaves the quote and
-the application disagreeing. This tool writes both via the same mutation, so it cannot introduce
-that disagreement. It requires a `reason`, written verbatim to the risk's activity feed as the audit
-trail — an unexplained date change on an active policy must never happen silently, and that entry is
-permanent and visible there to the owning agency and to Pathpoint staff, same as `add_risk_note`.
-The product-correct fix for a real mid-term date change is still an endorsement
-(`create_endorsement_request`); this tool is for correcting the record in place on a policy that is
-already bound, and it says so every time, along with what it does not fix: it does **not** re-rate
-(premium and terms are unchanged); policy documents, the binder, and ACORDs are **not** regenerated
-and keep the old dates; the quote's **grace period** is recalculated, which has billing implications
-on an active policy, and Ascend invoicing is not touched; and the **carrier** is not told — this
-changes Pathpoint's records only (except Vave).
+non-bound one. It sends the IDENTICAL `updatePolicyDates` mutation, and the server allows it on a
+bound or issued quote **only for Pathpoint staff (`GLOBAL_ACCESS_PROTECTED_RESOURCE`)** — anyone
+else gets FORBIDDEN and nothing is written. It isn't available over the hosted MCP connector, which
+never carries staff permissions; use a local `p login` session. On top of that, it needs the opt-in
+`policy` toolset and a required `reason`. It exists because Pathpoint's ops team corrects a bound
+policy's recorded dates in place every day, today in a third-party Retool app, and Retool does it
+worse: it writes only the EAV submission choice (`setUserChoice`) and never the quote row, so every
+Retool date amend leaves the quote and the application disagreeing. This tool writes both via the
+same mutation, so it cannot introduce that disagreement. It requires a `reason`, written verbatim to
+the risk's activity feed as the audit trail — an unexplained date change on an active policy must
+never happen silently, and that entry is permanent and visible there to the owning agency and to
+Pathpoint staff, same as `add_risk_note`. The product-correct fix for a real mid-term date change is
+still an endorsement (`create_endorsement_request`); this tool is for correcting the record in place
+on a policy that is already bound, and it says so every time, along with what it does not fix: it
+does **not** re-rate (premium and terms are unchanged); policy documents, the binder, and ACORDs are
+**not** regenerated and keep the old dates; the quote's **grace period** is recalculated, which has
+billing implications on an active policy, and Ascend invoicing is not touched; and the **carrier**
+is not told — this changes Pathpoint's records only (except Vave).
 
 One limitation worth knowing: both policy-dates tools resolve their target exclusively through the
 risk's `selectedQuote` (`resolvePolicyDatesQuote`), and that never changes just because the quote

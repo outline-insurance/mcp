@@ -5,6 +5,33 @@ All notable changes to the `p` CLI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.0.38] - 2026-11-04
+
+The generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
+date. 0.0.37 was built against the 2026-10-27 schema.
+
+### Changed
+
+- `amend_bound_policy_dates` needs Pathpoint staff permission (`GLOBAL_ACCESS_PROTECTED_RESOURCE`),
+  enforced by the server: anyone else gets FORBIDDEN and nothing is written. The hosted MCP
+  connector never carries staff permissions, so it only works from a local `p login` session. Its
+  description and the skill guide now say so instead of "ordinary risk/quote access".
+- `update_policy_dates`, `amend_bound_policy_dates` and the e-sign tools no longer send the risk
+  `eid` to `updatePolicyDates`; the server takes the risk from `riskId`.
+- `p mutation completeRegistration` no longer takes `--email` (the server uses the logged-in user)
+  and takes the agency's business address and estimated E&S premium.
+- The user returned by `p mutation updateAgencyUsersToNovidea` includes `accountManager`.
+- New Restaurants, Cyber (SEG, At-Bay VPN) and Vacant Building property questions are in the
+  embedded schema.
+
+### Fixed
+
+- `create_bind_request_task` no longer reports "already in the ops bind-request queue" when the only
+  open task is the license check that `request_bind` opens (`LICENSE_VALIDATION`). It now queues the
+  ops task. Only the ops task (`COMPLETE_INSURED_ESIGN`) counts as already queued.
+
 ## [0.0.37] - 2026-10-27
 
 The generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
