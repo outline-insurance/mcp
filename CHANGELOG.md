@@ -7,6 +7,93 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.40] - 2026-11-04
+
+### Changed
+
+- On the hosted connector, the opt-in tool groups come from the connector URL: add
+  `?toolsets=<names>` (for example `?toolsets=ops`) and reconnect. `enable_toolset` there now
+  returns that step instead of changing a setting that no client could see. Over stdio nothing
+  changes.
+- `clone_submission` needs Pathpoint staff permission, because the server limits the answer copy
+  (`riskValueTransfer`) to staff. Other accounts, and every hosted session, now get a refusal before
+  a risk is created, not an empty risk.
+- `set_property_geocode` requires `risk_id`. It writes the county the same way the web app does,
+  reads it back, and reports only what was written. Before, it reported a county and a Hazard row
+  that were never saved.
+- `list_pending_claims` and `flag_pending_claim` accept a quote EID, or a quote number with
+  `risk_id`, not only a UUID that no tool showed.
+
+### Fixed
+
+- `cancel_bind_request` no longer says the bind request is canceled. It cancels the queued ops task
+  only. It now says that the quote is still bind requested and that the Pathpoint team must withdraw
+  it, and it writes the reason to the activity feed.
+- `check_bind_readiness` no longer fails when the server refuses its validation step (hosted
+  sessions and non-staff accounts). It lists the open subjectivities and says that validation did
+  not run.
+- `list_risk_files` works on a draft that was never submitted. It lists the uploads and says that
+  ACORD PDFs come after submission.
+- `get_quote` accepts a quote EID without `risk_id`.
+- `get_quote` marks subjectivities complete with the same rule as `list_subjectivities` and
+  `check_bind_readiness`, so the three tools agree.
+- `get_quote` shows whether TRIA is in the total or opted out. Before, an opted-out TRIA premium
+  looked like a fee in the price. `set_tria` reads the quote back and shows the total before and
+  after. It does nothing when TRIA is already in the requested state.
+- `quote_risk` takes the policy dates from the risk when you omit them. Dates you pass still win.
+- `delete_risk_file` refuses a file that is not on `risk_id`. Before, it removed a file on another
+  risk, because the server ignores `riskId`.
+- `decline_endorsement_requests` and `confirm_endorsement` refuse a choice that is not pending on
+  `risk_id`. Before, they could decide another risk's choice, or reverse one that was already
+  decided.
+- `attach_quote_file` checks the quote id before it uploads, so a bad id leaves no file in storage.
+  The missing-quote-letter hint mentions manual quotes only when the quote is manual.
+- `list_fields`, `modify_submission`, `clone_submission` and `get_submission_questions` show dates
+  as YYYY-MM-DD and numbers without exponents (`2026-12-01`, not `1.7960832e+09`).
+- `renew_risk` reports the renewal's real status. The server submits renewals at once, so the tool
+  no longer says "submit_risk when ready". `clone_submission` with `submit` shows the status after
+  the submit.
+- `get_insured_contact` and `set_insured_contact` no longer say they fill the contact
+  subjectivities. Only the web app does that.
+- `request_loss_runs` explains that loss runs need a bound policy. Before, it showed a raw server
+  error. When `decline_submission` cannot tell which submission you mean, it lists the submission
+  ids.
+- `search_risk` and `list_risks` find bound and issued policies (by name or policy number) and
+  renewals, not only submissions. They run the same three searches as the web dashboard. Rows are
+  marked `[policy …]` or `[renewal]`, and a policy shows its renewal. `list_risks` accepts the
+  policy statuses. `SUBMITTED` is gone from the status list, because it is not a status.
+- `get_my_profile` says that the work-phone extension cannot be read back (the API never returns
+  it). `update_my_profile` warns when a save clears it, and no longer claims that it was kept.
+- `get_inspection_status` no longer tells the broker to upload while compliance is in review.
+  `update_inspection_status` with the status that is already set says that nothing was sent.
+- `add_property_claim` refuses a building that has no loss-history questions. Before, it created
+  rows that no tool could see. When `delete_property_claims` refuses an id, it says the id was
+  already deleted or is not on the risk.
+- `update_subjectivity` states the real effect of a type change on bind readiness and refuses a call
+  that changes nothing. `accept_subjectivities` no longer claims that accepting waives an item. It
+  counts the accepted items that still block `request_bind`.
+- `generate_esign_packet` accepts `field_values` as a JSON object. `get_state_subjectivity_fields`
+  has its own error when no quote is selected.
+- `undo_bind` reports the quote, submission and risk state it reads back after the undo. The server
+  does not re-sync the stored risk status. The "nothing is bound" hint names `bind_or_issue_policy`,
+  not `request_bind`.
+- `cancel_or_reinstate_policy` refuses to reinstate a policy that is not cancelled, or to cancel one
+  that is already cancelled. Before, it recorded the change and logged it anyway.
+- When a building has more than one claim, the claims are numbered Claim 1, Claim 2 and so on, so
+  each claim can be set with `modify_submission`. Before, every claim was labelled "Claim 1".
+- A `request_policy_cancellation` with an unknown `reason` gives an error that lists the valid
+  reasons. Before, it named `sub_action` and listed every endorsement sub-action.
+- A refused whole-number answer quotes the value as written (`12500000.5`, not `1.25000005e+07`).
+- A CONTACT_INFO subjectivity counts as complete only when its email and US phone pass the same
+  checks `request_bind` uses. `list_subjectivities`, `check_bind_readiness` and `get_quote` used to
+  call a malformed contact complete, and `request_bind` then refused it.
+- `update_inspection_status` with the status that is already set still sends a repeated
+  COMPLIANCE_REQUIRED, so the Novidea message is retried. It says that no activity or comment was
+  saved.
+- `search_risk` counts a policy number on a submission's selected quote as a match, not as a
+  possibly ignored filter.
+- In HTTP mode, the `Authorization` scheme is read case-insensitively (`bearer` works).
+
 ## [0.0.39] - 2026-11-04
 
 ### Changed

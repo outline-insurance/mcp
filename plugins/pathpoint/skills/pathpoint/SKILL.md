@@ -88,9 +88,10 @@ loads `mta` (BIND/ISSUE + Vave MTA, local/demo/review only).
 exist**, then `enable_toolset` to load the group for this session. Never improvise a workaround (or
 tell the user to go to the app) for a tool that is merely hidden. If the newly loaded tools still do
 not appear on the next turn, the MCP client is not honouring tool-list changes. Follow the recovery
-step in the `enable_toolset` reply: on the hosted connector, tell the user those tools are not
-available there yet (reconnecting does not help); on a local install, they add `--toolsets <name>`
-(or `--toolsets all`) to the `p mcp-serve` args in their MCP config, or set `$P_MCP_TOOLSETS`, and
+step in the `enable_toolset` reply. On the hosted connector the tool list cannot change
+mid-conversation: the user adds `?toolsets=<name>` (comma-separated, or a profile such as `ops`) to
+the end of the connector URL and reconnects. On a local install, they add `--toolsets <name>` (or
+`--toolsets all`) to the `p mcp-serve` args in their MCP config, or set `$P_MCP_TOOLSETS`, and
 restart it.
 
 Reading a risk's buildings (`list_properties`) is core, so per-location answers can still be written
@@ -100,16 +101,21 @@ with `modify_submission` without loading the properties group.
 
 ### Finding risks (`search_risk` vs `list_risks`)
 
-- `search_risk` — use when the user names a specific company or knows the UUID. Accepts a single
-  query string; matches named insured (case-insensitive substring) or policy number, most recently
-  updated first, at most 10 results. A blank query is refused rather than run: an empty search
-  returns unfiltered recent risks that look exactly like confident matches. If the results do not
-  contain the search term the tool says so — relay that caveat instead of presenting them as hits.
-- `list_risks` — use for "show me my recent submissions" or "what's in the queue". Optionally filter
-  by status (`DRAFT`, `SUBMITTED`, `QUOTED`, `BOUND`, `ISSUED`, `DECLINED`, `REFERRED`). Defaults to
-  the 20 most recent; max 50.
-- `list_recoverable_drafts` — use for "did I leave something half-finished?". `list_risks` does not
-  surface never-submitted drafts; this does, with percent complete and product. Resume one with
+- `search_risk` — use when the user names a specific company, a policy number or a UUID. Accepts a
+  single query string; matches named insured (case-insensitive substring) or policy number across
+  submissions, renewals and bound/issued policies, most recently updated first, at most 10 results.
+  Rows are labelled `[renewal]` or `[policy <number>]`. A blank query is refused rather than run: an
+  empty search returns unfiltered recent risks that look exactly like confident matches. If the
+  results do not contain the search term the tool says so — relay that caveat instead of presenting
+  them as hits.
+- `list_risks` — use for "show me my recent submissions" or "what's in the queue". Drafts, renewals
+  and bound/issued policies are included, with the same labels. Optionally filter by one status
+  (`DRAFT`, `UNDER_REVIEW`, `QUOTED`, `BIND_REQUESTED`, `BOUND`, `ISSUED`, and the others the tool
+  lists). There is no `SUBMITTED` status. A renewal Pathpoint has not yet quoted or declined is
+  hidden from both tools (and the web dashboard); find it on its expiring policy's `renewal:` line.
+  Defaults to the 20 most recent; max 50.
+- `list_recoverable_drafts` — use for "did I leave something half-finished?". It lists recent
+  never-submitted drafts with percent complete and product. Resume one with
   `get_submission_questions` → `modify_submission` → `submit_risk`.
 
     **The default window excludes today.** `days_ago_start` is the OLDER bound and must be strictly
@@ -395,7 +401,9 @@ Always ask:
 
 - **Premium** (required)
 - **Carrier** — can be picked from existing submissions or named freely
-- **Effective/expiration dates** — default from the risk, confirm with user
+- **Effective/expiration dates** — omit them to use the risk's policy dates (the tool fills them in
+  and says so); confirm with the user. A passed date always wins. If only `effective_date` is
+  passed, expiration is 1 year after it. A risk with no effective date needs `effective_date`.
 - **Quote number** — optional
 - **Fees** — agency, company, stamping, inspection (ask once, skip if none)
 - **TRIA** — optional
@@ -447,7 +455,8 @@ blockers and incomplete subjectivities without changing anything, and names the 
 each one (`upload_subjectivity_file` for FILES, `answer_subjectivity` for TEXT / DATE / CHECKBOX /
 CONTACT_INFO). Walk the user through fixing each blocker, then re-check. A missing quote letter
 comes back as a `QUOTE_FILE_MISSING` blocker — that one is fixed with `attach_quote_file`, not in
-the app.
+the app. On the hosted connector (and for non-staff accounts) the server refuses the validation
+step, so the report lists only subjectivities and says so; never call that "ready to bind".
 
 ### Requesting to bind (`request_bind`)
 
@@ -467,7 +476,8 @@ Two things it won't do on its own:
 
 - It refuses to run on a quote with no quote letter ("Quote letter is not ready" /
   `QUOTE_FILE_MISSING`). Manual quotes made with `quote_risk` never auto-generate one — attach a PDF
-  with `attach_quote_file` (`file_type: QUOTE_LETTER`) and retry.
+  with `attach_quote_file` (`file_type: QUOTE_LETTER`) and retry. A rated quote's letter may still
+  be generating — re-check shortly instead of uploading one.
 - It does not put the quote in front of Pathpoint ops. Follow it with `create_bind_request_task`.
 
 ### Ops bind queue (`create_bind_request_task`)
@@ -476,7 +486,7 @@ Two things it won't do on its own:
 so a bind requested through `request_bind` alone never reaches the queue ops works off. Call
 `create_bind_request_task` afterwards to complete the handoff — pass `risk_id` plus
 `quote_identifier` (quote number, EID, or UUID). It is idempotent: when a task is already queued it
-reports that one and creates nothing. `cancel_bind_request` withdraws it.
+reports that one and creates nothing. `cancel_bind_request` cancels the task.
 
 ## Rules that apply to every tool
 
@@ -655,15 +665,15 @@ it first, in this order: `search_addresses` → confirm the candidate with the u
   city is refused locally, the same rule the web client applies. Returns full candidates each
   carrying a `place_id`. **An empty result is ambiguous** — the server swallows AWS errors and
   returns nothing — so it is never proof the address is wrong.
-- `set_property_geocode` — takes a `place_id` plus the `entity_id` of the property (from
-  `list_properties`) and stores latitude, longitude and county on it, returning the county.
+- `set_property_geocode` — takes a `place_id` plus the `risk_id` and `entity_id` of the property
+  (from `list_properties`) and stores latitude and longitude on it. It then writes the County
+  question the way the web does and reads it back; the result says whether the county landed.
 
 Two things about `set_property_geocode` that its name does not tell you. It **writes**, even though
-the underlying API call is shaped like a read, so it takes `confirm_prod` on prod. And `entity_id`
-is not optional: without it the server returns nulls and writes nothing at all, silently. The write
-is best-effort — failures, including a permissions failure on the property, are logged and discarded
-server-side while the county still comes back — so treat success as "the lookup happened", not "the
-values persisted". Re-read with `list_fields` if it matters.
+the underlying API call is shaped like a read, so it takes `confirm_prod` on prod. And the
+coordinates write is best-effort — failures, including a permissions failure on the property, are
+logged and discarded server-side while the geocode still comes back — so treat the coordinates as
+"the lookup happened", not "the values persisted".
 
 ## Working the rest of the risk
 
@@ -671,8 +681,9 @@ values persisted". Re-read with `list_fields` if it matters.
 
 `select_quote` marks the quote the agent intends to bind and generates its bind checklist — use it
 when the user picks a quote but isn't ready to request bind (request_bind selects automatically).
-`set_tria` toggles terrorism coverage on a quote; premium and fees change, so show the updated
-`get_quote` cost afterwards.
+`set_tria` toggles terrorism coverage on a quote. TRIA starts opted out: `get_quote` shows the TRIA
+premium as "opted out, not in total" until it is included. `set_tria` reports the total cost before
+and after the change.
 
 ### Subjectivities (`list_subjectivities`, `answer_subjectivity`, `upload_subjectivity_file`)
 
@@ -705,10 +716,11 @@ answer before marking complete when the answer matters (payment info, inspection
 
 The named person Pathpoint emails the signing documents to, saved against a quote. It is the real
 record: writing contact JSON into a CONTACT_INFO subjectivity sets the subjectivity text but leaves
-this empty, and the Inspection Contact / Insured Pay / Audit Contact answers are fed from here. It
-also gates the e-sign flow: after the agent signs a packet, Pathpoint emails the insured their
-signing turn ONLY when this contact exists (see the esign toolset). Both tools take the risk UUID
-plus any quote identifier — number, EID, or UUID — resolved through the risk.
+this empty. The web app copies the contact into the Inspection Contact / Insured Pay / Audit Contact
+subjectivities; these tools do not, so answer those with `answer_subjectivity`. The contact also
+gates the e-sign flow: after the agent signs a packet, Pathpoint emails the insured their signing
+turn ONLY when this contact exists (see the esign toolset). Both tools take the risk UUID plus any
+quote identifier — number, EID, or UUID — resolved through the risk.
 
 - `get_insured_contact` — the saved contact, any contacts on the risk's other quotes, and the
   prefill candidates the app would offer. Having none is a normal state, not an error: the form only
@@ -736,8 +748,12 @@ Only call `delete_quote` after an explicit "yes". Never default to delete when t
 
 ### Canceling a bind request (`cancel_bind_request`)
 
-The undo for `request_bind` — use when the client backs out or the wrong quote was requested. Always
-collect a reason (it goes to the Pathpoint team) and confirm before calling.
+Cancels the queued bind-request task that `create_bind_request_task` opened (the app's "Make
+changes"). It does **not** withdraw a bind request made with `request_bind`: the quote stays bind
+requested, and only the Pathpoint team can withdraw it. No broker tool can. The result reads the
+quote back and says which case applies. Never tell the user the bind request is withdrawn unless the
+result says the quote is not bind requested. Always collect a reason and confirm before calling. The
+tool writes the reason as a permanent note in the risk's activity feed.
 
 ### Changing policy dates (`update_policy_dates`, `amend_bound_policy_dates`)
 
@@ -819,24 +835,29 @@ underwriter/ops side that Retool's Quoting-BT app has had all along.
   arguments outright (`text`, `date`, `checkbox`, the `contact_full_name`/`contact_email`/
   `contact_phone` trio, `licensed_agent_email`, `mark_complete`, files) and points at
   `answer_subjectivity` / `upload_subjectivity_file` / `accept_subjectivities` instead, and refuses
-  a call that changes nothing. **Changing `response_type` on a subjectivity that already has a saved
-  answer strands that answer** — bind readiness only consults the field matching the CURRENT type,
-  so the old answer becomes invisible the moment the type changes; the tool warns when this happens
-  and the item needs re-answering. Unlike create/delete, **this is NOT admin-gated server-side** —
-  it's only an ownership check (`@ResourceCheck(BySubjectivity)`), so any session that can see the
-  risk can retitle or restage one of its bind requirements.
+  a call that changes nothing, including one whose values already match. **Changing `response_type`
+  keeps a saved answer counting** — bind readiness accepts any saved answer whatever the type,
+  except CONTACT_INFO, where only the contact JSON counts. So a change TO CONTACT_INFO makes a
+  free-text answer incomplete (the tool warns), and a change between other types leaves the item
+  complete even if the new type's web input does not show the old answer (the tool notes it). Unlike
+  create/delete, **this is NOT admin-gated server-side** — it's only an ownership check
+  (`@ResourceCheck(BySubjectivity)`), so any session that can see the risk can retitle or restage
+  one of its bind requirements.
 - **`accept_subjectivities`** bulk-stamps `acceptedAt` on outstanding requirements
   (`bulkUpdateSubjectivities`), also **not admin-gated server-side**
-  (`@ResourceCheck(ByCustomFunction)`). By default it only accepts items that already have an
-  answer, on the selected quote (or every quote, if none is selected) — **accepting an unanswered
-  item WAIVES it rather than confirming it was satisfied**, so that never happens silently; pass
-  `include_unanswered: true` to do it anyway. `quote_identifier` scopes to one quote; `identifiers`
-  (an array of EIDs or title fragments) takes priority over `quote_identifier`, but every one named
-  must be on the SAME quote — a mixed-quote list (and the every-quote fall-through, when more than
-  one of those quotes has something outstanding) is refused before anything is sent, since
-  `bulkUpdateSubjectivities` rejects a batch spanning more than one quote wholesale. Per-item
-  failures come back as a 200 with no GraphQL errors, so a partial failure is reported as an error
-  result even when some items succeeded — check the message for which ones actually went through.
+  (`@ResourceCheck(ByCustomFunction)`). Accepting is the underwriter's sign-off on a response: the
+  web shows the item as Accepted and stops most edits, and once every subjectivity on a
+  bind-requested quote is accepted the quote can move to Ready for Payment. **Accepting does NOT
+  satisfy `request_bind`** — bind readiness counts only saved answers, so an accepted but unanswered
+  item still blocks it. By default the tool only accepts items that already have an answer, on the
+  selected quote (or every quote, if none is selected); pass `include_unanswered: true` to accept
+  unanswered ones too. `quote_identifier` scopes to one quote; `identifiers` (an array of EIDs or
+  title fragments) takes priority over `quote_identifier`, but every one named must be on the SAME
+  quote — a mixed-quote list (and the every-quote fall-through, when more than one of those quotes
+  has something outstanding) is refused before anything is sent, since `bulkUpdateSubjectivities`
+  rejects a batch spanning more than one quote wholesale. Per-item failures come back as a 200 with
+  no GraphQL errors, so a partial failure is reported as an error result even when some items
+  succeeded — check the message for which ones actually went through.
 
 ## The e-sign packet (esign toolset)
 
@@ -896,15 +917,15 @@ reason with the user first — this is what the agent will see as the market's a
 
 ### Renewals (`renew_risk`, `get_renewal_changes`)
 
-Use `renew_risk` when the user wants to renew an expiring policy/term. It creates a renewal draft
+Use `renew_risk` when the user wants to renew an expiring policy/term. It creates a renewal risk
 linked to the original and carries data forward — it refuses to duplicate an existing renewal and
-reports it instead. After creating, review dates and exposures with the user, apply updates, then
-`submit_risk`.
+reports it instead. The server usually submits the new renewal to its markets at once, so the reply
+gives the renewal's status: call `submit_risk` only when that status is `DRAFT`. Otherwise follow
+its markets and quotes with `get_risk`.
 
 `get_renewal_changes` shows field-by-field diffs against the expiring term with who changed what and
-when — useful for "what's different on the renewal?" before submitting it. The output leads with the
-expiring term's carrier of record; "not recorded" there means the prior term never bound, not a data
-error.
+when — useful for "what's different on the renewal?". The output leads with the expiring term's
+carrier of record; "not recorded" there means the prior term never bound, not a data error.
 
 ### Cloning submissions (`clone_submission`)
 
@@ -918,6 +939,10 @@ all in one call. If the source risk has no product assigned, clone will fail wit
 have the user fix that on the source before retrying. When submitting, the classless-submit guard
 (see `submit_risk`) runs after the clone is created: a blank — or unreadable — required class of
 business leaves the clone intact but NOT submitted, and the result says so with the new risk id.
+
+Copying the answers needs Pathpoint staff permission, which the hosted connector never carries. For
+any other account the tool refuses before it creates anything; then use `create_risk` and
+`modify_submission` instead.
 
 ### Excess cross-sale (`create_excess_from_quote`)
 
@@ -1173,17 +1198,18 @@ writes those rows.
 
 Admin only (`GLOBAL_ACCESS_PROTECTED_RESOURCE`). The correction for a bind that should never have
 happened — wrong quote bound, ops error, a bind recorded against the wrong risk. It clears the
-quote's bound/issued state so the risk drops back into the bind-requested stage, and it DELETES the
-Bound/Issued activity rows, which cannot be restored. That deletion is why this needs an explicit,
-confirmed user request — never suggest it as a routine step backwards.
+quote's bound/issued state (the bind request is kept), and it DELETES the Bound/Issued activity
+rows, which cannot be restored. That deletion is why this needs an explicit, confirmed user request
+— never suggest it as a routine step backwards. The server does not re-sync the risk status after an
+undo, so the tool reads the quote and risk back and reports what is true, a stale status included.
 
 Two boundaries to respect:
 
 - A policy that legitimately existed and now needs to end is a **cancellation**
   (`cancel_or_reinstate_policy`), which preserves the record that coverage was in force. Undo is
   only for binds that were mistakes from the start.
-- The bind request survives the undo. If the agent no longer wants to bind at all, follow with
-  `cancel_bind_request`.
+- The bind request survives the undo. If the agent no longer wants to bind at all, withdraw it with
+  the Retool `revertBindRequestedAt` action. `cancel_bind_request` only cancels a queued task.
 
 Same targeting as the other policy tools: `risk_id`, with the single bound quote picked by default.
 The tool shows the state before and after so what changed is on the record.
@@ -1315,10 +1341,10 @@ default commissions live on `update_agency_network` above.
 
 ### Your own profile (`get_my_profile`, `update_my_profile`, `set_risk_sharing_scope`)
 
-- `get_my_profile` — the logged-in user's own record: id, email, name, work phone and extension,
-  cell phone, NPN, license, email/SMS/terms consent, the default sharing scope applied to new risks,
-  and their agency. Read-only and scoped to the session — there is no way to read another user's
-  profile.
+- `get_my_profile` — the logged-in user's own record: id, email, name, work phone (the API never
+  returns the stored extension, so it can't be read back), cell phone, NPN, license, email/SMS/terms
+  consent, the default sharing scope applied to new risks, and their agency. Read-only and scoped to
+  the session — there is no way to read another user's profile.
 - `update_my_profile` — self-service edits: `name`, `phone`, `cell_phone`, `npn`,
   `agreed_to_sms_notifications`, `share_risks`. All optional, at least one required. Omitted fields
   are preserved — the tool reads the profile first and re-sends it, because the underlying
@@ -1326,7 +1352,8 @@ default commissions live on `update_agency_network` above.
   diff. Confirm the new values with the user first, and pass `confirm_prod: true` on prod.
     - `license` is admin-only and cannot be set here.
     - Put an extension inline: `phone: "+1 212-555-0142 ext. 12"`. A bare number CLEARS a stored
-      extension; `phone: ""` removes the work phone entirely.
+      extension; `phone: ""` removes the work phone entirely. The extension is the one field not
+      preserved: any call without `phone` clears it, so ask the user for it and pass it inline.
     - `name`, `npn` and `cell_phone` cannot be cleared — the server coalesces an empty value back to
       the stored one, so the tool rejects it rather than reporting a change that didn't happen.
     - Any call that keeps SMS consent on re-stamps the consent timestamp to now.
@@ -1359,7 +1386,8 @@ wrong answer, so establish which the user means before touching anything:
   id, so it is only half the job: fill it in afterwards with `modify_submission` against the labels
   `Claim Amount`, `Claim Type`, `Claim Date`, `Claim Description` and `Claim Fully Repaired`. The
   building's own gate question ("Has this location had any claims in the last 5 years?") must be
-  answered yes for the group to appear. Calling twice adds two empty rows.
+  answered yes for the group to appear. Calling twice adds two empty rows. It refuses a building
+  that has no gate question at all (products without per-building loss history, such as cglV2).
 
     The tool enumerates the risk's buildings first and refuses unless `property_id` is one of them —
     including when that list cannot be read. The server does not make that check itself (it
@@ -1370,13 +1398,14 @@ wrong answer, so establish which the user means before touching anything:
   the row is orphaned rather than erased, so its values survive in the database, but nothing exposed
   re-attaches it and `add_property_claim` only ever creates a new empty row. Treat it as permanent
   and expect the data to be re-entered. The batch is all-or-nothing, so one unknown id fails the
-  call and deletes nothing, which at least makes retry-after-fix safe. Deleting an already-deleted
-  row silently succeeds. Remaining rows renumber positionally, so never echo "Claim 2" back without
-  re-reading.
+  call and deletes nothing, which at least makes retry-after-fix safe. An already-deleted id is
+  refused like a foreign one, because a deleted row drops out of the risk. Remaining rows renumber
+  positionally, so never echo "Claim 2" back without re-reading.
 
-    **Finding the ids is the hard part, and today the MCP cannot.** No query returns claim ids —
-    they exist only inside the app's question-group ids. If a user wants a specific claim removed,
-    say so plainly and point them at the app rather than guessing at an id.
+    **Finding the ids is the hard part.** No query returns claim ids as data, and no tool lists them
+    up front. A refused `delete_property_claims` call lists every claim id on the risk, but not
+    which "Claim N" each one is. If a user wants a specific claim removed and you cannot tell which
+    id it is, say so plainly and point them at the app rather than guessing.
 
     The tool does still check ownership before deleting: it enumerates the risk's own loss-history
     rows and refuses the whole batch if any `claim_id` is not among them, including when that list
@@ -1388,7 +1417,8 @@ wrong answer, so establish which the user means before touching anything:
 
 - `list_pending_claims` — pending claims on a quote. Defaults to active only; pass
   `include_disabled: true` to see cleared ones too. An unknown or foreign `quote_id` is a
-  permissions error, not an empty list.
+  permissions error, not an empty list. Both pending-claim tools take `quote_id` as the EID
+  `get_quote` prints, a quote UUID, or a quote number with `risk_id`.
 - `flag_pending_claim` — records that a new claim has been reported against a quote. **Read the
   blast radius to the user before calling.** If the quote's risk has renewals, one call also syncs
   Novidea (Salesforce), clears the broker's selected quote on every renewal, hides every **VAVE**
@@ -1425,7 +1455,6 @@ merely a hidden group. What genuinely is not here:
 - **Saving / accepting / undoing an MTA** — `create_mta_submission` and `dry_run_mta` cover creating
   the child and previewing premium; persisting the dry-run, accepting, and undoing stay in the app.
 - **Premium financing** — financing estimates and payment programs.
-- **Changing policy dates on a bound quote.**
 - **Extracted document field values** — `get_extraction_status` reports how extraction is going, but
   the extracted values themselves, and cancelling a running extraction, are app-only.
 - **Creating broker users** — the `admin` toolset covers agency-network records and the logged-in
