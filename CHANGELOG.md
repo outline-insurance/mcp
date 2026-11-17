@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.43] - 2026-11-17
+
+### Added
+
+- `get_login_status` reports the server version and the tool and input names in that version's
+  CHANGELOG entry, and tells the agent what to do when its own copy of a tool looks older: the
+  client is using a tool list it saved when the conversation started, so the user starts a new
+  conversation (on the hosted connector, after reconnecting it in Settings → Connectors). The MCP
+  `initialize` reply carries the same version. The hosted connector, which has no release stamp,
+  reports the newest CHANGELOG release plus a fingerprint of its binary, with `+unreleased` when
+  [Unreleased] has entries.
+
 ## [0.0.42] - 2026-11-13
 
 The generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
