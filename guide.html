@@ -286,7 +286,7 @@
 
     <div class="hero-inner">
       <a class="pill" id="ver" href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">
-        <span class="dot"></span> v0.0.41 · latest release
+        <span class="dot"></span> v0.0.42 · latest release
       </a>
       <h1>Agent guide</h1>
       <p class="lede">Everything you need to quote, submit, and bind E&amp;S business with Pathpoint through Claude — from install to bind request.</p>
@@ -628,6 +628,9 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
 
         <h3>Claude says it can't do something I expect.</h3>
         <p>Some Pathpoint capabilities are for Pathpoint's internal teams, and Claude doesn't offer them to brokers. If something you need isn't there, it lives in the Pathpoint app.</p>
+
+        <h3>What is the questions toolset?</h3>
+        <p>Two tools on the new questions API: <code>list_questions</code> shows every question on a submission with what still blocks submit, and <code>answer_questions</code> saves answers and reports each one's result. They load with the <code>questions</code> toolset; the usual question tools work as before.</p>
 
         <h3>Is my password safe?</h3>
         <p>You type it only into a sign-in form served from your own machine in your browser, and it goes only to Pathpoint. It never appears in the chat, the terminal, or any log.</p>

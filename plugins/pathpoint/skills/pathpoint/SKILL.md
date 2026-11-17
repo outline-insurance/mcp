@@ -70,13 +70,14 @@ automatically there.
 Tools are grouped by who uses them. The **agent** tier loads by default: everything a broker does,
 from finding a risk to binding it, plus the broker side of a bound policy (endorsement and
 cancellation requests, inspection proof, loss-history rows, e-sign, building edits, the user's own
-profile). Three groups are opt-in:
+profile). Four groups are opt-in:
 
-| Group      | Who                                 | What is in it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal` | Pathpoint ops, underwriting, AMs    | `quote_risk`, `update_quote`, `delete_quote`, `attach_quote_file`, `decline_submission`, `clone_submission`, `renew_risk`, `resubmit_risk`, `set_risk_owner`, `create_bind_request_task`, `cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`, `undo_bind`, `amend_bound_policy_dates`, `confirm_endorsement`, `decline_endorsement_requests`, `mark_compliance_insufficient`, `flag_pending_claim`, `create_subjectivity`, `update_subjectivity`, `delete_subjectivity`, `accept_subjectivities`, `order_wildfire_scores` |
-| `admin`    | Tenant admins (also loads internal) | `list_agency_networks`, `create_agency_network`, `update_agency_network`, `search_agencies`, `set_agency_commission`                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `qa`       | Testers, local / demo / review only | `bind_or_issue_policy`, `create_mta_submission`, `dry_run_mta`, `update_inspection_status`, `upload_inspection_file`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Group       | Who                                 | What is in it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal`  | Pathpoint ops, underwriting, AMs    | `quote_risk`, `update_quote`, `delete_quote`, `attach_quote_file`, `decline_submission`, `clone_submission`, `renew_risk`, `resubmit_risk`, `set_risk_owner`, `create_bind_request_task`, `cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`, `undo_bind`, `amend_bound_policy_dates`, `confirm_endorsement`, `decline_endorsement_requests`, `mark_compliance_insufficient`, `flag_pending_claim`, `create_subjectivity`, `update_subjectivity`, `delete_subjectivity`, `accept_subjectivities`, `order_wildfire_scores` |
+| `admin`     | Tenant admins (also loads internal) | `list_agency_networks`, `create_agency_network`, `update_agency_network`, `search_agencies`, `set_agency_commission`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `qa`        | Testers, local / demo / review only | `bind_or_issue_policy`, `create_mta_submission`, `dry_run_mta`, `update_inspection_status`, `upload_inspection_file`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `questions` | Agents trying the new questions API | `list_questions`, `answer_questions` (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Most `internal` and `admin` tools need Pathpoint staff permission, which the server enforces: a
 broker who loads them gets FORBIDDEN. Sections below that use an opt-in tool say which group it is
@@ -90,9 +91,11 @@ step in the `enable_toolset` reply: on a local install, the user adds `--toolset
 `--toolsets all`) to the `p mcp-serve` args in their MCP config, or sets `$P_MCP_TOOLSETS`, and
 restarts it.
 
-The hosted connector serves the agent tier by default, and its tool list is fixed: it has no
-`list_toolsets` or `enable_toolset`. The server withholds staff permissions from hosted sessions, so
-staff work needs a local install (`p login`).
+The hosted connector lists the groups the signed-in account can use: the agent tier for everyone,
+`internal` for accounts with Pathpoint permission (`GLOBAL_ACCESS_PROTECTED_RESOURCE`), `admin` for
+accounts that manage agencies, and `qa` on test hosts. A hosted sign-in carries the same permissions
+as the app. Its tool list is fixed for the conversation: it has no `list_toolsets` or
+`enable_toolset`.
 
 ## The everyday loop
 
@@ -177,6 +180,23 @@ this build of `p` asks for, so the listing is missing whole sections. Never conc
 banner-carrying result that a field or question does not exist, and never tell the user a value
 cannot be set — say the tool and the server are out of sync, and work from the views that did come
 back.
+
+### The new questions API (`list_questions`, `answer_questions` — questions toolset)
+
+Load with `enable_toolset questions`. These use the new questions API; `get_submission_questions`
+and `modify_submission` keep working as before.
+
+- `list_questions(risk_id, topics?, entity_ids?, severity?, answered?)` lists every question that
+  applies, grouped by topic and entity (the risk, a building, a claim), with each one's `entity_id`,
+  `attribute`, `key`, value, suggestion, JSON Schema and issues. An issue marked BLOCKS SUBMIT must
+  be fixed before `submit_risk`.
+- `answer_questions(risk_id, answers: [{entity_id?, attribute, key?, value}])` saves up to 200
+  answers. `entity_id` defaults to the risk; `null` clears an answer. Each answer is checked on its
+  own: a rejected one prints NOT SAVED with the reason and the rest still save. It prints the other
+  values the save changed and the questions it added, removed or changed.
+- Work through what is left with `list_questions(severity=["BLOCK"])` until nothing comes back. Add
+  or remove buildings with `add_property` and `delete_property` and claims with `add_property_claim`
+  and `delete_property_claims`, then list again.
 
 ### Modifying submissions (`modify_submission`)
 
@@ -452,9 +472,9 @@ blockers and incomplete subjectivities without changing anything, and names the 
 each one (`upload_subjectivity_file` for FILES, `answer_subjectivity` for TEXT / DATE / CHECKBOX /
 CONTACT_INFO). Walk the user through fixing each blocker, then re-check. A missing quote letter
 comes back as a `QUOTE_FILE_MISSING` blocker — that one is fixed with `attach_quote_file`
-(`internal`), not in the app. On the hosted connector (and for non-staff accounts) the server
-refuses the validation step, so the report lists only subjectivities and says so; never call that
-"ready to bind".
+(`internal`), not in the app. For accounts without Pathpoint permission the server refuses the
+validation step, so the report lists only subjectivities and says so; never call that "ready to
+bind".
 
 ### Requesting to bind (`request_bind`)
 
@@ -783,22 +803,21 @@ refused outright: those dates belong to an active policy, and changing them is e
 `update_policy_dates`: it only accepts a **BOUND** quote, where the agent tool only accepts a
 non-bound one. It sends the IDENTICAL `updatePolicyDates` mutation, and the server allows it on a
 bound or issued quote **only for Pathpoint staff (`GLOBAL_ACCESS_PROTECTED_RESOURCE`)** — anyone
-else gets FORBIDDEN and nothing is written. It isn't available over the hosted MCP connector, which
-never carries staff permissions; use a local `p login` session. On top of that, it needs the opt-in
-`internal` group and a required `reason`. It exists because Pathpoint's ops team corrects a bound
-policy's recorded dates in place every day, today in a third-party Retool app, and Retool does it
-worse: it writes only the EAV submission choice (`setUserChoice`) and never the quote row, so every
-Retool date amend leaves the quote and the application disagreeing. This tool writes both via the
-same mutation, so it cannot introduce that disagreement. It requires a `reason`, written verbatim to
-the risk's activity feed as the audit trail — an unexplained date change on an active policy must
-never happen silently, and that entry is permanent and visible there to the owning agency and to
-Pathpoint staff, same as `add_risk_note`. The product-correct fix for a real mid-term date change is
-still an endorsement (`create_endorsement_request`); this tool is for correcting the record in place
-on a policy that is already bound, and it says so every time, along with what it does not fix: it
-does **not** re-rate (premium and terms are unchanged); policy documents, the binder, and ACORDs are
-**not** regenerated and keep the old dates; the quote's **grace period** is recalculated, which has
-billing implications on an active policy, and Ascend invoicing is not touched; and the **carrier**
-is not told — this changes Pathpoint's records only (except Vave).
+else gets FORBIDDEN and nothing is written. On top of that, it needs the `internal` group and a
+required `reason`. It exists because Pathpoint's ops team corrects a bound policy's recorded dates
+in place every day, today in a third-party Retool app, and Retool does it worse: it writes only the
+EAV submission choice (`setUserChoice`) and never the quote row, so every Retool date amend leaves
+the quote and the application disagreeing. This tool writes both via the same mutation, so it cannot
+introduce that disagreement. It requires a `reason`, written verbatim to the risk's activity feed as
+the audit trail — an unexplained date change on an active policy must never happen silently, and
+that entry is permanent and visible there to the owning agency and to Pathpoint staff, same as
+`add_risk_note`. The product-correct fix for a real mid-term date change is still an endorsement
+(`create_endorsement_request`); this tool is for correcting the record in place on a policy that is
+already bound, and it says so every time, along with what it does not fix: it does **not** re-rate
+(premium and terms are unchanged); policy documents, the binder, and ACORDs are **not** regenerated
+and keep the old dates; the quote's **grace period** is recalculated, which has billing implications
+on an active policy, and Ascend invoicing is not touched; and the **carrier** is not told — this
+changes Pathpoint's records only (except Vave).
 
 One limitation worth knowing: both policy-dates tools resolve their target exclusively through the
 risk's `selectedQuote` (`resolvePolicyDatesQuote`), and that never changes just because the quote
@@ -938,9 +957,8 @@ have the user fix that on the source before retrying. When submitting, the class
 (see `submit_risk`) runs after the clone is created: a blank — or unreadable — required class of
 business leaves the clone intact but NOT submitted, and the result says so with the new risk id.
 
-Copying the answers needs Pathpoint staff permission, which the hosted connector never carries. For
-any other account the tool refuses before it creates anything; then use `create_risk` and
-`modify_submission` instead.
+Copying the answers needs Pathpoint permission. For any other account the tool refuses before it
+creates anything; then use `create_risk` and `modify_submission` instead.
 
 ### Excess cross-sale (`create_excess_from_quote`)
 
@@ -970,6 +988,33 @@ of the name or email (`query: "sarah"`) — large agencies have hundreds of user
 the list stops at `limit` (default 25, max 100).
 
 ## Files & documents
+
+### Files on the hosted connector (`presign_upload_link_files`, `upload_file_part`, `request_upload_link`)
+
+On the hosted connector a file reaches a record through an `upload_id`, which any upload tool or
+`files[]` entry takes as an alternative to `content_base64`. When the `upload_id` holds several
+files, the file name picks one: `path`, or `file_path` for `attach_quote_file`. Get one, in this
+order:
+
+1. **You can run curl where the file is** (a file attached to a claude.ai chat, under
+   `/mnt/user-data/uploads` in the code sandbox, or a file on disk in Claude Code): call
+   `presign_upload_link_files` with each file's path and size (`wc -c < file`), and a `name` when
+   the sandbox renamed it (claude.ai prefixes chat attachments like `3654abcd-`). Run each `curl` it
+   returns (it prints `204`), then pass the `upload_id` to the upload tool. Don't ask the user to
+   upload anything, and don't base64-encode the file into `content_base64`.
+2. **You have the bytes but no shell** (an artifact page calling the connector): a file of up to
+   4,000,000 bytes goes straight in `content_base64`. A bigger one goes through `upload_file_part`:
+   split it into parts of up to 4,000,000 bytes (at most 20 parts and 50 MB in all), send each with
+   the same `upload_id` (omit it on the first part; the reply gives one), `name` and `parts`, and
+   the call that completes the set stores the whole file. Then pass the `upload_id` to the upload
+   tool. One tool call carries at most 6 MB, which is why a bigger file can't go in one
+   `content_base64`.
+3. **Otherwise, or if a curl can't reach storage**: call `request_upload_link` and give the user the
+   link; they open it signed in to Pathpoint, upload the files, and tell you when they're done.
+   `list_upload_link_files` shows what arrived.
+
+The uploaded file is the attached file: nothing is copied. The `upload_id` is a pointer that expires
+1 hour after the last upload. An upload tool refuses a file whose curl hasn't stored it yet.
 
 ### Risk files (`upload_risk_file`, `delete_risk_file`, `list_risk_files`)
 

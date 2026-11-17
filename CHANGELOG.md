@@ -7,6 +7,58 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.42] - 2026-11-13
+
+The generated `p query` / `p mutation` commands and the embedded `p schema` match the API as of this
+date. 0.0.41 was built against the 2026-11-04 schema.
+
+### Added
+
+- An opt-in `questions` tool group (`--toolsets questions`) for the new questions API:
+  `list_questions` lists a risk's questions by entity and attribute with their issues, and
+  `answer_questions` answers them with a result per answer. `get_submission_questions` and
+  `modify_submission` work as before.
+- The new Restaurants class codes are in the class code catalog.
+- Every upload tool and `files[]` entry takes an `upload_id` as an alternative to `content_base64`,
+  so a claude.ai chat can attach files it can't send as bytes. The uploaded file is attached as is,
+  with no copy; the `upload_id` is a pointer kept 1 hour after the last upload. Files are capped at
+  50 MB each.
+- `request_upload_link` returns a Pathpoint web link where the user uploads files.
+  `list_upload_link_files` shows what arrived.
+- `presign_upload_link_files` lets Claude upload files itself from a shell it can run curl in (the
+  claude.ai code sandbox, or Claude Code), with nothing for the user to do. It returns an
+  `upload_id` and one `curl` per file. An upload tool refuses an upload-link file that isn't in
+  storage yet.
+- `upload_file_part` stores a file sent in parts of up to 4,000,000 bytes (50 MB in all), for
+  callers that can only pass bytes in the tool call (an artifact page). Use it for any file over 4
+  MB: base64 makes a file about a third bigger, and a hosted tool call carries at most 6 MB. The
+  call that completes the parts stores the whole file on the `upload_id`.
+
+### Deprecated
+
+- `accountManager` on the agency returned by `p query getAgencyByUuid`, `p query agencies` and
+  `p mutation syncAgencyToNovidea` is now always null and will be removed. The logged-in user's
+  `accountManager` is unchanged.
+
+### Changed
+
+- The hosted connector tells the api it is `p-mcp-hosted` (a local MCP server is still `p-mcp`) and
+  logs one JSON line per tool call: the tool, the account id, the duration and how it ended. Tool
+  arguments, results and error text are never logged.
+- A hosted sign-in carries the same permissions as the app, and the hosted connector lists the tool
+  groups the account can use: `internal` for accounts with `GLOBAL_ACCESS_PROTECTED_RESOURCE`,
+  `admin` for accounts that manage agencies, and `qa` on test hosts. Brokers still get the agent
+  tier.
+- `quote_risk` and `update_quote` set the general aggregate deductible on GL and package quotes:
+  `gl_deductible` (dollars) and `gl_deductible_type` (`BI/PD` or `BI`, default `BI/PD`). These are
+  the two deductible fields ops fills in Retool. `get_quote` shows them.
+
+### Fixed
+
+- `update_quote` no longer zeroes the GL limits you leave out. The server rewrites the whole GL
+  limit row, so the tool now reads the stored limits and sends them with your changes. Before,
+  changing one GL limit set personal injury, medical expense and damages to premises to 0.
+
 ## [0.0.41] - 2026-11-05
 
 ### Changed
