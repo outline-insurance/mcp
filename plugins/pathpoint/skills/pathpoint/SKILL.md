@@ -60,6 +60,8 @@ automatically there.
 | Amend a quoted risk's dates       | `update_policy_dates`                                 | Changing policy dates             |
 | Upload renewal quotes             | `renew_risk`, `quote_risk`, `attach_quote_file`       | Attaching quote documents         |
 | Add a bind requirement            | `create_subjectivity`                                 | Subjectivity authoring            |
+| Release or hide a quote           | `set_quote_hidden`                                    | Hiding or releasing a quote       |
+| Withdraw a bind request           | `revert_bind_request`                                 | Reverting a bind request          |
 | Reject inspection compliance      | `mark_compliance_insufficient`                        | Inspections                       |
 | Confirm or decline an endorsement | `confirm_endorsement`, `decline_endorsement_requests` | Endorsements                      |
 | Bind or issue a quoted policy     | `bind_or_issue_policy` (`qa`, not `internal`)         | Binding or issuing (QA, non-prod) |
@@ -72,12 +74,12 @@ from finding a risk to binding it, plus the broker side of a bound policy (endor
 cancellation requests, inspection proof, loss-history rows, e-sign, building edits, the user's own
 profile). Four groups are opt-in:
 
-| Group       | Who                                 | What is in it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal`  | Pathpoint ops, underwriting, AMs    | `quote_risk`, `update_quote`, `delete_quote`, `attach_quote_file`, `decline_submission`, `clone_submission`, `renew_risk`, `resubmit_risk`, `set_risk_owner`, `create_bind_request_task`, `cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`, `undo_bind`, `amend_bound_policy_dates`, `confirm_endorsement`, `decline_endorsement_requests`, `mark_compliance_insufficient`, `flag_pending_claim`, `create_subjectivity`, `update_subjectivity`, `delete_subjectivity`, `accept_subjectivities`, `order_wildfire_scores` |
-| `admin`     | Tenant admins (also loads internal) | `list_agency_networks`, `create_agency_network`, `update_agency_network`, `search_agencies`, `set_agency_commission`                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `qa`        | Testers, local / demo / review only | `bind_or_issue_policy`, `create_mta_submission`, `dry_run_mta`, `update_inspection_status`, `upload_inspection_file`                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `questions` | Agents trying the new questions API | `list_questions`, `answer_questions` (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Group       | Who                                 | What is in it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal`  | Pathpoint ops, underwriting, AMs    | `quote_risk`, `update_quote`, `set_quote_hidden`, `delete_quote`, `attach_quote_file`, `decline_submission`, `clone_submission`, `renew_risk`, `resubmit_risk`, `set_risk_owner`, `create_bind_request_task`, `cancel_or_reinstate_policy`, `mark_policy_non_renew`, `remove_non_renewal`, `undo_bind`, `revert_bind_request`, `amend_bound_policy_dates`, `confirm_endorsement`, `decline_endorsement_requests`, `mark_compliance_insufficient`, `flag_pending_claim`, `create_subjectivity`, `update_subjectivity`, `delete_subjectivity`, `accept_subjectivities`, `order_wildfire_scores` |
+| `admin`     | Tenant admins (also loads internal) | `list_agency_networks`, `create_agency_network`, `update_agency_network`, `search_agencies`, `set_agency_commission`                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `qa`        | Testers, local / demo / review only | `bind_or_issue_policy`, `create_mta_submission`, `dry_run_mta`, `update_inspection_status`, `upload_inspection_file`                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `questions` | Agents trying the new questions API | `list_questions`, `answer_questions` (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Most `internal` and `admin` tools need Pathpoint staff permission, which the server enforces: a
 broker who loads them gets FORBIDDEN. Sections below that use an opt-in tool say which group it is
@@ -465,6 +467,24 @@ them is what leaves the current values alone.
 
 Show a before/after summary before executing.
 
+### Hiding or releasing a quote (`set_quote_hidden`, `internal`)
+
+Sets the flag behind Retool's **Quote Hidden From Agent** switch. `hidden: false` releases the quote
+to the agent; `hidden: true` hides it. `get_risk` marks each quote `hidden from agent` or
+`visible to agent`, and `get_quote` lists `hidden` under Flags.
+
+Releasing puts the quote in front of the broker, so get the user's OK before you call the tool. It
+also marks the market Quoted and moves the quote to the latest submission. Hiding deselects the
+quote if it was selected and marks the market Referred.
+
+A quote made with `quote_risk` is visible to the agent at once and needs no release. Quotes are
+hidden when a rater refers them, and manual quotes are hidden again when the risk is resubmitted.
+
+The tool refuses once the submission is bind requested, bound, ready for payment, issued, canceled,
+expired or closed. That is where Retool locks the switch. To change a bind-requested quote, withdraw
+the bind request first with `revert_bind_request`. If the quote is already in the state you asked
+for, the tool says so and writes nothing.
+
 ### Bind readiness (`check_bind_readiness`)
 
 Run before `request_bind` or whenever the user asks "can I bind this yet?" — it reports validation
@@ -768,10 +788,27 @@ Only call `delete_quote` after an explicit "yes". Never default to delete when t
 
 Cancels the queued bind-request task that `create_bind_request_task` opened (the app's "Make
 changes"). It does **not** withdraw a bind request made with `request_bind`: the quote stays bind
-requested, and only the Pathpoint team can withdraw it. No broker tool can. The result reads the
-quote back and says which case applies. Never tell the user the bind request is withdrawn unless the
-result says the quote is not bind requested. Always collect a reason and confirm before calling. The
-tool writes the reason as a permanent note in the risk's activity feed.
+requested, and only Pathpoint staff can withdraw it, with `revert_bind_request`. No broker tool can.
+The result reads the quote back and says which case applies. Never tell the user the bind request is
+withdrawn unless the result says the quote is not bind requested. Always collect a reason and
+confirm before calling. The tool writes the reason as a permanent note in the risk's activity feed.
+
+### Reverting a bind request (`revert_bind_request`, `internal`)
+
+Withdraws a bind request, the same as Retool's **Revert Bind Request**. It clears the request and
+cancels the quote's open bind-request tasks, and the quote goes back to its status before the
+request. Confirm with the user before you call it.
+
+It needs a `reason` and a free-text `explanation`; both are recorded. The reasons are Retool's:
+"Incorrect classification", "Subjectivity corrections past SLA", "Payment past SLA", "Agent selected
+wrong quote" and "Submission flow correction needed (other than classification)". With no
+`quote_identifier` the tool takes the risk's only bind-requested quote.
+
+Which tool to use:
+
+- `cancel_bind_request` cancels a queued bind-request task. A bind request stays in place.
+- `revert_bind_request` withdraws the bind request. It refuses a bound or issued quote.
+- `undo_bind` clears a mistaken bind. It keeps the bind request.
 
 ### Changing policy dates (`update_policy_dates`, `amend_bound_policy_dates`)
 
@@ -1253,7 +1290,7 @@ Two boundaries to respect:
   (`cancel_or_reinstate_policy`), which preserves the record that coverage was in force. Undo is
   only for binds that were mistakes from the start.
 - The bind request survives the undo. If the agent no longer wants to bind at all, withdraw it with
-  the Retool `revertBindRequestedAt` action. `cancel_bind_request` only cancels a queued task.
+  `revert_bind_request`. `cancel_bind_request` only cancels a queued task.
 
 Same targeting as the other policy tools: `risk_id`, with the single bound quote picked by default.
 The tool shows the state before and after so what changed is on the record.

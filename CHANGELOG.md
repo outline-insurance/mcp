@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.44] - 2026-11-20
+
+### Added
+
+- `set_quote_hidden` hides a quote from the agent or releases it to them. It sets the same flag as
+  Retool's Quote Hidden From Agent switch, and it refuses at the same point: once the submission is
+  bind requested, bound, ready for payment, issued, canceled, expired or closed. When the quote is
+  already in the state asked for, it writes nothing. It is in the `internal` group.
+- `revert_bind_request` withdraws a bind request, the same as Retool's Revert Bind Request, with the
+  same five reasons and a required explanation. It refuses a bound or issued quote, and a quote that
+  was never bind requested. It is in the `internal` group.
+
+### Changed
+
+- `get_risk` marks each quote as hidden from the agent or visible to the agent.
+- `undo_bind` and `cancel_bind_request` point to `revert_bind_request` for withdrawing a bind
+  request. They used to point to the Retool action.
+
 ## [0.0.43] - 2026-11-17
 
 ### Added
