@@ -1,10 +1,34 @@
 # Pathpoint MCP Server
 
-Install the Pathpoint `p` CLI + Claude MCP server + Pathpoint skill on your machine.
+Quote, submit, and bind E&S business with Pathpoint by talking to Claude. The server is hosted: add the connector and sign in. There is nothing to install. The `p` CLI and a local MCP server are still here for scripts, CI, and local setups.
 
 Current release: **v0.0.43** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
-## Install
+## Connect (hosted)
+
+Server URL: `https://mcp.app.pathpoint.com/v1`
+
+### Claude (web, desktop, mobile)
+
+1. In Claude on the web or in the desktop app, go to **Customize → Connectors**. Click **+ Add**, then **Add custom connector**.
+2. Name the connector **Pathpoint**, paste the server URL, and continue through the prompts to **Add**.
+3. Sign in on the Pathpoint page that opens, with your everyday Pathpoint login. Claude gets the same access you have in the Pathpoint app.
+
+On a Team or Enterprise plan, an Owner adds the connector once under **Organization settings → Connectors**. Everyone else then clicks **Connect** under **Customize → Connectors**.
+
+### Claude Code
+
+```bash
+claude mcp add --transport http --scope user pathpoint https://mcp.app.pathpoint.com/v1
+```
+
+Then run `/mcp` inside Claude Code, choose `pathpoint`, and sign in in the browser.
+
+Any other client that supports remote MCP servers with OAuth sign-in can use the same URL.
+
+## Install the `p` CLI (optional)
+
+You don't need the CLI to use Pathpoint in Claude. It is for scripts, CI, and running the MCP server on your own machine. The installer also wires a local Pathpoint server into Claude Desktop and Claude Code: if you use the hosted connector too, keep one or the other in each app, or Claude sees every tool twice.
 
 ### macOS / Linux
 
@@ -54,7 +78,7 @@ On macOS, if you see a Gatekeeper warning, clear the quarantine flag: `xattr -d 
 
 ## Pathpoint skill
 
-The skill is a guide Claude reads so it knows how to walk non-technical users through Pathpoint operations (quoting, submissions, risk management). The install script sets it up automatically for Claude Code. For Claude Desktop or Claude.ai Web you import the zip manually.
+The skill is a guide Claude reads so it knows how to walk non-technical users through Pathpoint operations (quoting, submissions, risk management). The install script sets it up automatically for Claude Code. With the hosted connector, or on Claude Desktop or Claude.ai Web, you upload the zip yourself.
 
 ### Claude Code (plugin, auto)
 
@@ -79,10 +103,10 @@ curl -fsSL https://raw.githubusercontent.com/outline-insurance/mcp/main/SKILL.md
 
 Claude Desktop skills live on Anthropic's servers rather than a local path, so the final step is manual. The installer already helps: it pre-downloads `pathpoint-plugin.zip` to your `Downloads` folder when it detects Claude Desktop.
 
-The zip adds guidance, not tools — the Pathpoint tools run locally over stdio, so claude.ai on its own can't reach them; actual risk work needs Claude Desktop or Claude Code.
+The zip adds guidance, not tools. The tools come from the hosted connector (see Connect above) or from a local install.
 
-1. Open Claude Desktop.
-2. **Settings → Capabilities → Plugins → Upload local plugin** → upload `~/Downloads/pathpoint-plugin.zip` (or `%USERPROFILE%\Downloads\pathpoint-plugin.zip` on Windows).
+1. Open Claude on the web or in the desktop app.
+2. **Customize → Plugins → Add → Upload plugin** → upload `~/Downloads/pathpoint-plugin.zip` (or `%USERPROFILE%\Downloads\pathpoint-plugin.zip` on Windows).
 3. Restart Claude Desktop, or start a fresh chat on Claude.ai Web.
 
 Upload `pathpoint-plugin.zip`, not `pathpoint-skill.zip`. The plugin uploader needs a `.claude-plugin/plugin.json` manifest; `pathpoint-skill.zip` is a bare `SKILL.md` for the older **Skills → Create skill** importer and fails plugin validation with *"Zip must contain a .claude-plugin/plugin.json file or a top-level SKILL.md declaring plugin components"*. Both are published on every release, so use whichever matches the dialog in front of you.
@@ -151,6 +175,9 @@ If the one-liner doesn't fit your environment:
 
 | Symptom | Fix |
 |---------|-----|
+| Connector: wrong account, or sign-in rejected | Disconnect Pathpoint under **Customize → Connectors**, connect again, and sign in with the right account. |
+| Connector: a tool is missing | Reconnect the connector and start a new conversation. Claude keeps the tool list it saved when the chat began. |
+| Connector: no option to add it | On Team and Enterprise plans only an Owner can add a connector. Send your Claude admin the server URL. |
 | Windows SmartScreen warning | Click "More info → Run anyway". Expected only when the download's checksum couldn't be verified (the binary is unsigned). |
 | Windows: "Claude Desktop not detected" | Launch Claude Desktop once, then re-run the installer. It creates its config directory on first run. |
 | Windows: installer says it configured the MCP server, but `pathpoint` isn't in Connectors | Fully quit Claude Desktop (tray icon too) and reopen — the config is read only at startup. If it's still missing, check the path the installer printed against the "Manual install" note above; on MSIX installs the config lives under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\`, not `%APPDATA%`. |

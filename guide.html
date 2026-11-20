@@ -164,7 +164,7 @@
     font-weight:700;font-size:.92rem;display:grid;place-items:center}
   .step h3{font-size:1.05rem;font-weight:700}
   .step p{margin-top:6px;font-size:.96rem;color:var(--muted)}
-  pre.block{background:var(--code-bg);color:var(--code-ink);border-radius:13px;padding:16px 18px;overflow-x:auto;
+  pre.block{background:var(--code-bg);color:var(--code-ink);border-radius:13px;padding:16px 50px 16px 18px;overflow-x:auto;
     font-family:var(--mono);font-size:.84rem;line-height:1.7;margin:12px 0 0;position:relative}
   pre.block .c{color:#7e8bbf}
   pre.block .k{color:var(--teal-bright)}
@@ -235,7 +235,7 @@
   .guide section:first-of-type h2{margin-top:0}
   .guide h3{font-size:1.12rem;font-weight:700;margin-top:34px;scroll-margin-top:24px}
   .guide p{margin-top:12px}
-  .guide ul{margin:12px 0 0;padding-left:22px}
+  .guide ul,.guide ol{margin:12px 0 0;padding-left:22px}
   .guide li{margin-top:6px}
   .wstep{margin-top:34px;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
   .wstep .whead{display:flex;gap:14px;align-items:center;padding:16px 20px;background:var(--bg-soft);border-bottom:1px solid var(--border)}
@@ -252,7 +252,7 @@
   .recipe h3{margin-top:0}
   .recipe .say{display:inline-block;margin-top:10px;background:linear-gradient(135deg,var(--blue),var(--blue-soft));color:#fff;padding:9px 14px;border-radius:12px;border-bottom-left-radius:4px;font-size:.93rem}
   @media (max-width:880px){
-    .guide-layout{grid-template-columns:1fr;gap:28px}
+    .guide-layout{grid-template-columns:minmax(0,1fr);gap:28px}
     .toc{position:static;display:flex;flex-wrap:wrap;gap:4px 14px}
     .toc a{border-left:none;padding-left:0}
     .toc a.sub{display:none}
@@ -289,7 +289,7 @@
         <span class="dot"></span> v0.0.43 · latest release
       </a>
       <h1>Agent guide</h1>
-      <p class="lede">Everything you need to quote, submit, and bind E&amp;S business with Pathpoint through Claude — from install to bind request.</p>
+      <p class="lede">Everything you need to quote, submit, and bind E&amp;S business with Pathpoint through Claude — from connecting Claude to bind request.</p>
     </div>
   </div>
   <svg class="wave" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true"><path fill="#ffffff" d="M0,40 C240,72 480,72 720,46 C960,20 1200,20 1440,44 L1440,70 L0,70 Z"></path></svg>
@@ -301,6 +301,8 @@
     <aside class="toc">
       <span class="eyebrow">On this page</span>
       <a href="#getting-started">Getting started</a>
+      <a class="sub" href="#connect-claude">Connect Claude</a>
+      <a class="sub" href="#local-install">Local install (optional)</a>
       <a href="#walkthrough">Quote a risk, start to bind</a>
       <a class="sub" href="#step-1">1. Start the submission</a>
       <a class="sub" href="#step-2">2. Answer in plain English</a>
@@ -319,22 +321,39 @@
       <!-- ---------- Getting started ---------- -->
       <section id="getting-started">
         <h2>Getting started</h2>
+        <p>The Pathpoint MCP server is hosted. Add it to Claude as a connector and sign in. There is nothing to install.</p>
 
-        <h3>Install</h3>
+        <h3 id="connect-claude">Connect Claude</h3>
+        <p>In Claude on the web or in the desktop app:</p>
+        <ol>
+          <li>Go to <b>Customize → Connectors</b>. Click <b>+ Add</b>, then <b>Add custom connector</b>.</li>
+          <li>Name the connector <b>Pathpoint</b>, paste the URL below, and continue through the prompts to <b>Add</b>.</li>
+          <li>Sign in on the Pathpoint page that opens, with your everyday Pathpoint login.</li>
+        </ol>
+        <pre class="block"><button class="copy-pre" data-copy="g-url" aria-label="Copy the Pathpoint connector URL"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-url">https://mcp.app.pathpoint.com/v1</code></pre>
+        <p>The connector then works wherever you use Claude with that account, the mobile apps included. On a Team or Enterprise plan, an Owner adds it once under <b>Organization settings → Connectors</b>; everyone else then clicks <b>Connect</b> under <b>Customize → Connectors</b>.</p>
+
+        <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude Code</h3>
+        <p style="color:var(--muted);font-size:.95rem">One command adds the hosted server. Then run <code>/mcp</code> inside Claude Code, choose <code>pathpoint</code>, and sign in in the browser.</p>
+        <pre class="block"><button class="copy-pre" data-copy="g-cc" aria-label="Copy the Claude Code command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-cc"><span class="k">claude</span> mcp add --transport http --scope user pathpoint https://mcp.app.pathpoint.com/v1</code></pre>
+
+        <h3>Sign in</h3>
+        <p>You sign in once, on Pathpoint's own page, when you connect. Claude gets the same access you have in the Pathpoint app, and your password never appears in the chat. To switch accounts, disconnect the connector and connect again.</p>
+
+        <h3>Add the skill (optional)</h3>
+        <p>The connector gives Claude the Pathpoint tools. The skill adds the playbook: what to ask, what each product needs, when to check appetite. Download <code>pathpoint-plugin.zip</code> from the <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">latest release</a> and upload it under <b>Customize → Plugins → Add → Upload plugin</b>.</p>
+
+        <p>Try it now — ask Claude <em>"Show me my recent Pathpoint submissions"</em> to confirm everything is connected.</p>
+
+        <h3 id="local-install">Prefer a local install?</h3>
+        <p>You don't need one to use Pathpoint in Claude. The <code>p</code> CLI runs the same MCP server on your own machine and adds a command line for scripts and CI. If you also use the hosted connector, keep only one of the two switched on in each Claude app, or Claude sees every tool twice.</p>
         <pre class="block"><button class="copy-pre" data-copy="g-unix" aria-label="Copy macOS / Linux install command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-unix"><span class="c"># macOS / Linux</span>
 curl -fsSL https://raw.githubusercontent.com/outline-insurance/mcp/main/install.sh | bash</code></pre>
         <pre class="block"><button class="copy-pre" data-copy="g-win" aria-label="Copy Windows install command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-win"><span class="c"># Windows PowerShell</span>
 irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | iex</code></pre>
         <p>The installer puts <code>p</code> on your PATH (on macOS and Linux by adding a marked block to your shell rc when needed — opt out with <code>P_NO_MODIFY_PATH=1</code>; on Windows by setting your user PATH automatically, no rc file involved), wires the MCP server into Claude Desktop via <code>p install-desktop-config</code> (a native merge — no jq needed), and installs the Claude Code plugin when the <code>claude</code> CLI is present.</p>
-
-        <h3>Sign in</h3>
         <p><code>p login</code> opens a sign-in form in your browser on your own machine (<code>127.0.0.1</code>) — your password never appears in the terminal or the chat, and goes only to Pathpoint. Sessions are verified with the server; when one expires, run <code>p login</code> again.</p>
-
-        <h3>Check the install</h3>
         <p><code>p doctor</code> prints a one-shot health report (version, session, install state) — paste it when asking for help.</p>
-
-        <h3>Connect Claude</h3>
-        <p>Three ways to bring Pathpoint into a conversation with Claude, depending on where you chat.</p>
         <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude Desktop</h3>
         <p style="color:var(--muted);font-size:.95rem">Wired up automatically by the installer. By hand, run <code>p install-desktop-config</code> — it finds the real config on every platform (including Windows MSIX installs) and merges the entry natively, no jq needed; <code>--dry-run</code> previews. Or edit the config yourself:</p>
         <pre class="block"><button class="copy-pre" data-copy="g-cfg" aria-label="Copy MCP config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-cfg">{
@@ -345,14 +364,10 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
     }
   }
 }</code></pre>
-        <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude Code</h3>
-        <p style="color:var(--muted);font-size:.95rem">Installed automatically when the <code>claude</code> CLI is on your PATH. To install or update by hand:</p>
+        <h3 style="font-size:1.05rem;margin:26px 0 6px">Claude Code plugin</h3>
+        <p style="color:var(--muted);font-size:.95rem">Installed automatically when the <code>claude</code> CLI is on your PATH: the skill plus the local MCP server. To install or update by hand:</p>
         <pre class="block"><button class="copy-pre" data-copy="g-plugin" aria-label="Copy plugin install commands"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><code id="g-plugin"><span class="k">claude</span> plugin marketplace add https://github.com/outline-insurance/mcp.git
 <span class="k">claude</span> plugin install pathpoint@outline-insurance --scope user</code></pre>
-        <h3 style="font-size:1.05rem;margin:26px 0 6px">claude.ai</h3>
-        <p style="color:var(--muted);font-size:.95rem">The Pathpoint tools run locally, so claude.ai on its own can't reach them — use Claude Desktop or Claude Code for actual risk work. What you can add on claude.ai (and in Claude Desktop, alongside the tools) is the skill: upload <code>pathpoint-plugin.zip</code> from the <a href="https://github.com/outline-insurance/mcp/releases/latest" target="_blank" rel="noopener">latest release</a> under <b>Settings → Capabilities → Plugins → Upload local plugin</b> to teach Claude the Pathpoint workflow. Reach for <code>pathpoint-skill.zip</code> only if your Claude still shows the older <b>Skills → Create skill</b> importer — the plugin dialog rejects it.</p>
-
-        <p>Try it now — in Claude Desktop or Claude Code, ask Claude <em>"Show me my recent Pathpoint submissions"</em> to confirm everything is connected.</p>
       </section>
 
       <!-- ---------- Walkthrough ---------- -->
@@ -446,6 +461,7 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
             </div>
             <div class="toolcap"><span class="lbl">Behind the scenes</span><code>check_bind_readiness</code><code>list_subjectivities</code><code>answer_subjectivity</code><code>upload_subjectivity_file</code></div>
             <div class="tip"><b>Ask "can I bind this yet?"</b> any time — Claude re-checks readiness and tells you exactly what's still blocking, and which of your inputs clears it.</div>
+            <div class="tip"><b>Prefer e-sign?</b> Claude can build one e-sign packet for the signed forms and give you your licensed agent's signing link. (<code>get_state_subjectivity_fields</code>, <code>generate_esign_packet</code>)</div>
           </div>
         </div>
 
@@ -506,9 +522,9 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
 
         <div class="recipe">
           <h3>Files &amp; documents</h3>
-          <p>Quote letters, policy docs, anything attached.</p>
+          <p>Quote letters, policy docs, anything attached. To add your own, attach the file to the chat: Claude uploads it, or gives you a Pathpoint upload link.</p>
           <span class="say">Get me the Kinsale quote letter.</span>
-          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>get_quote_documents</code><code>list_risk_files</code></div>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>get_quote_documents</code><code>list_risk_files</code><code>upload_risk_file</code><code>request_upload_link</code></div>
         </div>
 
         <div class="recipe">
@@ -516,6 +532,48 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
           <p>Let your colleagues see a risk.</p>
           <span class="say">Share this one with the rest of the agency.</span>
           <div class="toolcap"><span class="lbl">Behind the scenes</span><code>share_risk</code><code>list_agency_users</code></div>
+        </div>
+
+        <div class="recipe">
+          <h3>Buildings &amp; loss history</h3>
+          <p>Add a location, copy a building, or record a prior claim on a draft.</p>
+          <span class="say">Add a second building at the same address.</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>add_property</code><code>duplicate_property</code><code>delete_property</code><code>add_property_claim</code></div>
+        </div>
+
+        <div class="recipe">
+          <h3>E-sign the bind documents</h3>
+          <p>One packet that your licensed agent and the insured sign electronically, in place of collecting each signed form. Your agent signs first. Pathpoint then emails the insured their own link, but only when the insured's contact is saved on the quote. Without it, you arrange the insured's signature yourself.</p>
+          <span class="say">Generate the e-sign packet for the Kinsale quote.</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>get_state_subjectivity_fields</code><code>generate_esign_packet</code><code>invalidate_esign_packet</code><code>set_insured_contact</code></div>
+        </div>
+
+        <div class="recipe">
+          <h3>Change a bound policy</h3>
+          <p>Ask Pathpoint for an endorsement: an additional insured, a mailing address, a premises, limits. Claude files the request and Pathpoint's team processes it.</p>
+          <span class="say">Add Lakeline Property Management as an additional insured on the Hill Country policy.</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>create_endorsement_request</code><code>list_endorsement_requests</code><code>get_confirmed_endorsements</code></div>
+        </div>
+
+        <div class="recipe">
+          <h3>Request a cancellation</h3>
+          <p>Ask Pathpoint to cancel a bound policy. Claude files the request with the signed ACORD 35, and Pathpoint's team processes it.</p>
+          <span class="say">The insured sold the business. Request cancellation on the Hill Country policy.</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>request_policy_cancellation</code><code>list_endorsement_requests</code></div>
+        </div>
+
+        <div class="recipe">
+          <h3>Inspections</h3>
+          <p>Where the inspection stands, what the carrier found, and what you still owe. Send the proof when the recommendations are done.</p>
+          <span class="say">Where is the inspection on the Hill Country policy?</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>get_inspection_status</code><code>upload_proof_of_inspection</code></div>
+        </div>
+
+        <div class="recipe">
+          <h3>Your profile</h3>
+          <p>Your phone, NPN, text alerts, and whether new risks are shared with your agency by default.</p>
+          <span class="say">Share my new risks with my agency by default.</span>
+          <div class="toolcap"><span class="lbl">Behind the scenes</span><code>get_my_profile</code><code>update_my_profile</code><code>set_risk_sharing_scope</code></div>
         </div>
       </section>
 
@@ -528,8 +586,8 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
         <div class="tbl-scroll">
         <table class="tbl">
           <tr><th>Tool</th><th>What it does</th></tr>
-          <tr><td><code>login</code></td><td>opens the browser sign-in form on your machine</td></tr>
-          <tr><td><code>get_login_status</code></td><td>checks the saved session against the server</td></tr>
+          <tr><td><code>login</code></td><td>local install only: opens the browser sign-in form on your machine. On the hosted connector you sign in when you connect</td></tr>
+          <tr><td><code>get_login_status</code></td><td>checks your sign-in against the server</td></tr>
         </table>
         </div>
 
@@ -544,6 +602,11 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
           <tr><td><code>search_tenancy_types</code> / <code>get_recommended_tenancy_types</code></td><td>same for building tenancy</td></tr>
           <tr><td><code>search_addresses</code></td><td>validate and normalize an address</td></tr>
           <tr><td><code>list_properties</code></td><td>the buildings on a multi-location risk</td></tr>
+          <tr><td><code>add_property</code> / <code>duplicate_property</code></td><td>add a location, or copy a building at the same address</td></tr>
+          <tr><td><code>delete_property</code></td><td>remove a building</td></tr>
+          <tr><td><code>set_property_geocode</code></td><td>confirm a building's address from the search result</td></tr>
+          <tr><td><code>add_property_claim</code> / <code>delete_property_claims</code></td><td>add or remove prior claims in a building's loss history</td></tr>
+          <tr><td><code>list_fields</code></td><td>every field on a risk, with its current value</td></tr>
           <tr><td><code>upload_risk_file</code></td><td>attach a file (ACORDs are auto-extracted)</td></tr>
           <tr><td><code>get_extraction_status</code></td><td>how the ACORD extraction is going</td></tr>
           <tr><td><code>list_recoverable_drafts</code></td><td>never-submitted drafts you can resume</td></tr>
@@ -584,8 +647,24 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
           <tr><td><code>list_subjectivities</code></td><td>outstanding carrier requirements</td></tr>
           <tr><td><code>answer_subjectivity</code></td><td>answer text/date/checkbox/contact requirements</td></tr>
           <tr><td><code>upload_subjectivity_file</code></td><td>satisfy file requirements</td></tr>
+          <tr><td><code>get_state_subjectivity_fields</code></td><td>what the e-sign packet's state form needs</td></tr>
+          <tr><td><code>generate_esign_packet</code> / <code>invalidate_esign_packet</code></td><td>create the e-sign packet and its signing link, or expire it</td></tr>
+          <tr><td><code>list_pending_claims</code></td><td>pending claims flagged on a quote</td></tr>
           <tr><td><code>request_bind</code></td><td>ask Pathpoint to bind the selected quote</td></tr>
           <tr><td><code>cancel_bind_request</code></td><td>cancel a queued bind-request task</td></tr>
+        </table>
+        </div>
+
+        <h3>After the bind</h3>
+        <div class="tbl-scroll">
+        <table class="tbl">
+          <tr><th>Tool</th><th>What it does</th></tr>
+          <tr><td><code>create_endorsement_request</code></td><td>ask Pathpoint to change a bound policy</td></tr>
+          <tr><td><code>list_endorsement_requests</code></td><td>your endorsement and cancellation requests, with the state of each</td></tr>
+          <tr><td><code>get_confirmed_endorsements</code></td><td>endorsements already applied to the policy</td></tr>
+          <tr><td><code>request_policy_cancellation</code></td><td>ask Pathpoint to cancel a bound policy</td></tr>
+          <tr><td><code>get_inspection_status</code></td><td>where the inspection stands and what you owe</td></tr>
+          <tr><td><code>upload_proof_of_inspection</code></td><td>send the signed recommendations letter and proof of completion</td></tr>
         </table>
         </div>
 
@@ -603,6 +682,10 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
           <tr><td><code>get_insured_contact</code> / <code>set_insured_contact</code></td><td>the insured's contact details</td></tr>
           <tr><td><code>request_loss_runs</code></td><td>ask for loss runs on a policy</td></tr>
           <tr><td><code>list_risk_files</code> / <code>delete_risk_file</code></td><td>files on the risk</td></tr>
+          <tr><td><code>request_upload_link</code> / <code>list_upload_link_files</code></td><td>a Pathpoint link where you upload files for Claude to attach</td></tr>
+          <tr><td><code>presign_upload_link_files</code> / <code>upload_file_part</code></td><td>Claude uploads a file itself, whole or in parts</td></tr>
+          <tr><td><code>get_my_profile</code> / <code>update_my_profile</code></td><td>your own profile: phone, NPN, text alerts, default sharing</td></tr>
+          <tr><td><code>set_risk_sharing_scope</code></td><td>share all your risks with your agency, or none of them</td></tr>
         </table>
         </div>
       </section>
@@ -611,6 +694,17 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
       <section id="troubleshooting">
         <h2>Troubleshooting &amp; FAQ</h2>
 
+        <h3>Hosted connector</h3>
+        <div class="tbl-scroll">
+        <table class="tbl">
+          <tr><td>Wrong account</td><td>Disconnect Pathpoint under <b>Customize → Connectors</b>, connect again, and sign in with the right account. Do the same if the sign-in is rejected.</td></tr>
+          <tr><td>Missing tools</td><td>Reconnect the connector and start a new conversation. Claude keeps the tool list it saved when the chat began.</td></tr>
+          <tr><td>Can't add it</td><td>On Team and Enterprise plans only an Owner can add a connector. Send your Claude admin the connector URL.</td></tr>
+          <tr><td>Attaching files</td><td>Ask Claude to attach the file. It uploads the file itself where it can, or gives you a Pathpoint upload link. Up to 50 MB per file.</td></tr>
+        </table>
+        </div>
+
+        <h3>Local install</h3>
         <div class="tbl-scroll">
         <table class="tbl">
           <tr><td>Windows SmartScreen</td><td>Click <b>More info → Run anyway</b>. Expected only when the download's checksum couldn't be verified (the binary is unsigned).</td></tr>
@@ -630,16 +724,16 @@ irm https://raw.githubusercontent.com/outline-insurance/mcp/main/install.ps1 | i
         <p>Some Pathpoint capabilities are for Pathpoint's internal teams, and Claude doesn't offer them to brokers. If something you need isn't there, it lives in the Pathpoint app.</p>
 
         <h3>What is the questions toolset?</h3>
-        <p>Two tools on the new questions API: <code>list_questions</code> shows every question on a submission with what still blocks submit, and <code>answer_questions</code> saves answers and reports each one's result. They load with the <code>questions</code> toolset; the usual question tools work as before.</p>
+        <p>Two tools on the new questions API: <code>list_questions</code> shows every question on a submission with what still blocks submit, and <code>answer_questions</code> saves answers and reports each one's result. They load with the <code>questions</code> toolset; the usual question tools work as before. The toolset is opt-in on a local install (<code>p mcp-serve --toolsets questions</code>). The hosted connector does not offer it.</p>
 
         <h3>Is my password safe?</h3>
-        <p>You type it only into a sign-in form served from your own machine in your browser, and it goes only to Pathpoint. It never appears in the chat, the terminal, or any log.</p>
+        <p>You type it only into a sign-in page in your browser: Pathpoint's own page on the hosted connector, or a form served from your own machine on a local install. It goes only to Pathpoint. It never appears in the chat, the terminal, or any log.</p>
 
         <h3>Will Claude change anything without asking?</h3>
         <p>No. Submissions, quote selections, and bind requests are always summarized and confirmed with you first, and Claude reports back what actually changed.</p>
 
         <h3>Something else?</h3>
-        <p>Run <code>p doctor</code>, then <a href="https://github.com/outline-insurance/mcp/issues" target="_blank" rel="noopener">open an issue</a> with the output.</p>
+        <p><a href="https://github.com/outline-insurance/mcp/issues" target="_blank" rel="noopener">Open an issue</a>. On a local install, run <code>p doctor</code> first and include the output. The repository is public, so leave out policyholder data.</p>
       </section>
     </main>
   </div>
