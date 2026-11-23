@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.0.45] - 2026-11-23
+
+### Fixed
+
+- Questions on the Restaurants pages (Prior Coverage & Loss History, Operations, Food & Beverage,
+  Alcohol Service, Games/Gambling/Recreation, Events & Entertainment, Premises & Surroundings,
+  Off-Premises Operations, Building Information) can be answered. `modify_submission` refused them
+  with "not found in any view", and `list_fields` and `get_submission_questions` left them out,
+  because `p` did not know those pages existed.
+
 ## [0.0.44] - 2026-11-20
 
 ### Added
