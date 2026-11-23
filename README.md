@@ -2,7 +2,7 @@
 
 Quote, submit, and bind E&S business with Pathpoint by talking to Claude. The server is hosted: add the connector and sign in. There is nothing to install. The `p` CLI and a local MCP server are still here for scripts, CI, and local setups.
 
-Current release: **v0.0.44** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+Current release: **v0.0.45** &nbsp;·&nbsp; [Website](https://outline-insurance.github.io/mcp/) &nbsp;·&nbsp; [All releases](https://github.com/outline-insurance/mcp/releases) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 ## Connect (hosted)
 
