@@ -1,0 +1,27 @@
+CHANGELOG.md
+  s_cc02b95d4ed409::t_15511073c6a392 10-19
+README.md
+  s_cc02b95d4ed409::t_2c0d6a46e9ebfa 5
+guide.html
+  s_cc02b95d4ed409::t_9f3502efb2d165 289
+index.html
+  s_cc02b95d4ed409::t_83ce5acbc8f518 495
+plugins/pathpoint/.claude-plugin/plugin.json
+  s_cc02b95d4ed409::t_082d97dcbd644b 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e204cc1c03df6787f4c351b3938af436af23aefa",
+  "prompts": {},
+  "sessions": {
+    "s_cc02b95d4ed409": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "475577e8-3793-4d6b-90c7-7634bccb6fb1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Nadya <nvoitik@pathpoint.com>"
+    }
+  }
+}
